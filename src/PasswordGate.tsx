@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { LockKeyhole } from 'lucide-react'
 
 const SESSION_KEY = 'personal-90-unlocked'
-const PASSWORD_HASH = 'c7b787ab08c20f73349c13cde7e440c36115fbb447a05479a1208254f06fc494'
+const PASSWORD_HASH = '63dd59d59671db0beca3e7b5c5cbec7a8cfdfb3ebe5a36939d89141ee7876541'
 
 async function hash(value: string) {
   const bytes = new TextEncoder().encode(value)

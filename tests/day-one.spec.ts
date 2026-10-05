@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('./')
-  await page.getByLabel('Пароль').fill('0328')
+  await page.getByLabel('Пароль').fill('Knopka2000')
   await page.getByRole('button', { name: 'Открыть приложение' }).click()
   await expect(page.getByRole('heading', { name: /Сегодня/ })).toBeVisible()
 })
