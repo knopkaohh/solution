@@ -2,15 +2,16 @@ import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Check, TrendingUp } from 'lucide-react'
 import { Card, Empty, Field, PageTitle } from '../components'
+import { calculateScores } from '../scoring'
 import { useAppStore } from '../store'
 import type { ReviewRatings, WeeklyReview } from '../types'
-import { calculateDayScore, dateForDay, formatDuration, getProgramDay, todayKey } from '../utils'
+import { calculateWeightAverage, dateForDay, formatDuration, getProgramPosition, todayKey } from '../utils'
 
 const defaultRatings: ReviewRatings = { body: 5, sleep: 5, mind: 5, discipline: 5, wellbeing: 5 }
 
 export function ProgressPage() {
   const store = useAppStore()
-  const day = getProgramDay(store.settings.programStart)
+  const day = getProgramPosition(store.cycle.startDate).day
   const [tab, setTab] = useState<'overview' | 'review'>('overview')
   const week = Math.ceil(day / 7)
   const oldReview = store.weeklyReviews.find((item) => item.week === week)
@@ -20,20 +21,25 @@ export function ProgressPage() {
   const [saved, setSaved] = useState(false)
 
   const points = Array.from({ length: day }, (_, i) => {
-    const date = dateForDay(store.settings.programStart, i + 1)
+    const date = dateForDay(store.cycle.startDate, i + 1)
     const daily = store.dailyLogs[date]
     const sleep = store.sleepLogs[date]
+    const plan = store.dailyPlans[date]
+    const scores = plan ? calculateScores(store, plan) : undefined
+    const weight = [...store.weightMeasurements].filter((item) => item.timestamp.startsWith(date) && item.confirmed).at(-1)?.value
     return {
-      day: i + 1, weight: daily?.weight, steps: daily?.steps,
+      day: i + 1, weight, steps: daily?.steps,
       sleep: sleep?.durationMinutes ? +(sleep.durationMinutes / 60).toFixed(1) : undefined,
-      quality: sleep?.quality, score: calculateDayScore(store, date).score || undefined,
+      quality: sleep?.quality, score: scores?.dayScore, execution: scores?.executionScore,
     }
   })
   const hasData = points.some((p) => p.weight || p.steps || p.sleep)
-  const loggedDays = Object.keys(store.dailyLogs).length
-  const avgScore = loggedDays ? Math.round(Object.keys(store.dailyLogs).reduce((sum, date) => sum + calculateDayScore(store, date).score, 0) / loggedDays) : 0
+  const executionValues = points.map((point) => point.execution).filter((value): value is number => value !== undefined)
+  const avgExecution = executionValues.length ? Math.round(executionValues.reduce((sum, value) => sum + value, 0) / executionValues.length) : 0
   const sleepValues = Object.values(store.sleepLogs).filter((item) => item.durationMinutes)
   const avgSleep = sleepValues.length ? Math.round(sleepValues.reduce((sum, item) => sum + (item.durationMinutes ?? 0), 0) / sleepValues.length) : 0
+  const weightAverage = calculateWeightAverage(store.weightMeasurements.filter((item) => item.confirmed), todayKey())
+  const currentWeight = [...store.weightMeasurements].filter((item) => item.confirmed).sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]?.value
   const ratingFields: [keyof ReviewRatings, string][] = [['body', 'Тело'], ['sleep', 'Сон'], ['mind', 'Мозг'], ['discipline', 'Дисциплина'], ['wellbeing', 'Самочувствие']]
 
   if (day >= 90 && store.monthlyReviews.some((r) => r.day === 90)) return <FinalReport />
@@ -43,17 +49,17 @@ export function ProgressPage() {
       <PageTitle eyebrow="PROGRESS" title="Смотри на тренд." description="Отдельный день — шум. Несколько недель показывают направление." action={<div className="segmented"><button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>Обзор</button><button className={tab === 'review' ? 'active' : ''} onClick={() => setTab('review')}>Weekly review</button></div>} />
       {tab === 'overview' ? <>
         <div className="progress-kpis">
-          <Card><span>Текущий вес</span><strong>{Object.values(store.dailyLogs).filter((l) => l.weight).at(-1)?.weight ?? '—'} <small>кг</small></strong><em>Старт: 120 кг</em></Card>
+          <Card><span>Текущий вес</span><strong>{currentWeight ?? '—'} <small>кг</small></strong><em>{weightAverage.sufficient ? `7-day avg: ${weightAverage.average} кг` : `7-day avg: недостаточно данных (${weightAverage.count}/3)`}</em></Card>
           <Card><span>Средний сон</span><strong>{avgSleep ? formatDuration(avgSleep) : '—'}</strong><em>{sleepValues.length} записей</em></Card>
           <Card><span>Тренировки</span><strong>{store.workouts.filter((w) => w.completed).length}</strong><em>за текущий цикл</em></Card>
-          <Card><span>Дисциплина</span><strong>{avgScore}<small>%</small></strong><em>{loggedDays} дней с данными</em></Card>
+          <Card><span>Execution</span><strong>{avgExecution}<small>%</small></strong><em>{executionValues.length} дней с подтверждёнными фактами</em></Card>
         </div>
         {!hasData ? <Card><Empty>Добавь первые данные на экране «Сегодня» — графики появятся автоматически.</Empty></Card> :
         <div className="chart-grid">
           <ChartCard title="Вес" unit="кг"><ResponsiveContainer width="100%" height={240}><LineChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis domain={['auto', 'auto']} /><Tooltip /><Line connectNulls type="monotone" dataKey="weight" stroke="var(--accent)" strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></ChartCard>
           <ChartCard title="Шаги" unit="в день"><ResponsiveContainer width="100%" height={240}><BarChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis /><Tooltip /><Bar dataKey="steps" fill="var(--blue)" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></ChartCard>
           <ChartCard title="Сон" unit="часов"><ResponsiveContainer width="100%" height={240}><LineChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis domain={[0, 12]} /><Tooltip /><Line connectNulls type="monotone" dataKey="sleep" stroke="var(--violet)" strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></ChartCard>
-          <ChartCard title="Выполнение" unit="score"><ResponsiveContainer width="100%" height={240}><LineChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis domain={[0, 100]} /><Tooltip /><Line connectNulls type="monotone" dataKey="score" stroke="var(--orange)" strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></ChartCard>
+          <ChartCard title="Day / Execution" unit="0–100"><ResponsiveContainer width="100%" height={240}><LineChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis domain={[0, 100]} /><Tooltip /><Line connectNulls type="monotone" name="Day Score" dataKey="score" stroke="var(--orange)" strokeWidth={3} dot={false} /><Line connectNulls type="monotone" name="Execution" dataKey="execution" stroke="var(--accent)" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></ChartCard>
         </div>}
         {[30, 60, 90].includes(day) && <MilestoneReview day={day as 30 | 60 | 90} />}
       </> : (
@@ -86,7 +92,7 @@ function MilestoneReview({ day }: { day: 30 | 60 | 90 }) {
 
 function FinalReport() {
   const store = useAppStore()
-  const lastWeight = Object.values(store.dailyLogs).filter((l) => l.weight).at(-1)?.weight ?? '—'
+  const lastWeight = [...store.weightMeasurements].filter((item) => item.confirmed).sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]?.value ?? '—'
   const stepLogs = Object.values(store.dailyLogs).filter((l) => l.steps)
   const avgSteps = stepLogs.length ? Math.round(stepLogs.reduce((s, l) => s + (l.steps ?? 0), 0) / stepLogs.length) : 0
   return <><PageTitle eyebrow="DAY 90" title="YOU MADE IT." description="Не идеальный streak. Девяносто дней данных, решений и продолжения." /><Card className="final-report"><div className="before-after"><span>BEFORE</span><TrendingUp /><span>AFTER</span></div><div className="final-grid"><div><span>BODY</span><strong>120 → {lastWeight} кг</strong></div><div><span>ACTIVITY</span><strong>2 000 → {avgSteps.toLocaleString('ru-RU')}</strong></div><div><span>GYM</span><strong>{store.workouts.filter((w) => w.completed).length} тренировок</strong></div><div><span>MIND</span><strong>{store.brainSessions.filter((s) => s.completed).length} сессий</strong></div></div></Card></>

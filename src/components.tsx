@@ -3,13 +3,15 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { Brain, CalendarDays, ChartNoAxesCombined, Dumbbell, LayoutDashboard, Settings, Sun, Moon } from 'lucide-react'
 import { useAppStore } from './store'
 import { getPhase } from './program'
-import { getProgramDay } from './utils'
+import { getProgramPosition } from './utils'
 
 export function Shell({ children }: { children: ReactNode }) {
   const settings = useAppStore((state) => state.settings)
+  const cycle = useAppStore((state) => state.cycle)
   const updateSettings = useAppStore((state) => state.updateSettings)
-  const day = getProgramDay(settings.programStart)
-  const phase = getPhase(day)
+  const position = getProgramPosition(cycle.startDate)
+  const day = position.day
+  const phase = getPhase(day || 1)
   const location = useLocation()
   const nav = [
     { to: '/', label: 'Сегодня', icon: LayoutDashboard },
@@ -28,7 +30,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="brand"><span className="brand-mark">P90</span><span>PERSONAL<br /><b>OPERATING SYSTEM</b></span></div>
         <div className="cycle">
           <div className="eyebrow">ТЕКУЩИЙ ЦИКЛ</div>
-          <strong>День {day} <span>/ 90</span></strong>
+          <strong>{position.status === 'BEFORE' ? 'До старта' : position.status === 'COMPLETED' ? 'Цикл завершён' : `День ${day}`} <span>{position.status === 'ACTIVE' ? '/ 90' : ''}</span></strong>
           <div className="progress"><i style={{ width: `${(day / 90) * 100}%` }} /></div>
           <small>PHASE {phase.id} · {phase.name}</small>
         </div>
@@ -45,7 +47,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <main>
         <header className="mobile-header">
           <div className="brand"><span className="brand-mark">P90</span></div>
-          <span>День {day} · {phase.name}</span>
+          <span>{position.status === 'ACTIVE' ? `День ${day} · ${phase.name}` : position.status === 'BEFORE' ? 'До старта' : 'Цикл завершён'}</span>
           <button className="icon-button" onClick={switchTheme}>{settings.theme === 'dark' ? <Sun /> : <Moon />}</button>
         </header>
         <div className="page" key={location.pathname}>{children}</div>

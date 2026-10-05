@@ -13,9 +13,11 @@ export function SettingsPage() {
 
   const exportData = () => {
     const data: AppData = {
-      version: store.version, settings: store.settings, dailyLogs: store.dailyLogs,
+      dataVersion: store.dataVersion, settings: store.settings, cycle: store.cycle,
+      dailyPlans: store.dailyPlans, planRevisions: store.planRevisions, dailyLogs: store.dailyLogs,
       sleepLogs: store.sleepLogs, nutritionLogs: store.nutritionLogs, workouts: store.workouts,
-      brainSessions: store.brainSessions, weeklyReviews: store.weeklyReviews, monthlyReviews: store.monthlyReviews,
+      weightMeasurements: store.weightMeasurements, brainSessions: store.brainSessions,
+      scoreSnapshots: store.scoreSnapshots, weeklyReviews: store.weeklyReviews, monthlyReviews: store.monthlyReviews,
     }
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
     const anchor = document.createElement('a')
@@ -28,12 +30,19 @@ export function SettingsPage() {
   const importData = async (file?: File) => {
     if (!file) return
     try {
-      const data = JSON.parse(await file.text()) as AppData
-      if (!data.settings || !data.dailyLogs || data.version !== 1) throw new Error()
+      const data = JSON.parse(await file.text()) as unknown
+      const current: AppData = {
+        dataVersion: store.dataVersion, settings: store.settings, cycle: store.cycle,
+        dailyPlans: store.dailyPlans, planRevisions: store.planRevisions, dailyLogs: store.dailyLogs,
+        sleepLogs: store.sleepLogs, nutritionLogs: store.nutritionLogs, workouts: store.workouts,
+        weightMeasurements: store.weightMeasurements, brainSessions: store.brainSessions,
+        scoreSnapshots: store.scoreSnapshots, weeklyReviews: store.weeklyReviews, monthlyReviews: store.monthlyReviews,
+      }
+      localStorage.setItem(`personal-90-backup-${Date.now()}`, JSON.stringify(current))
       store.importData(data)
-      setMessage('Данные восстановлены')
-    } catch {
-      setMessage('Не удалось прочитать файл. Нужен JSON из PERSONAL 90.')
+      setMessage('Данные проверены и восстановлены. Предыдущая версия сохранена локально.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Не удалось прочитать файл PERSONAL 90.')
     }
   }
   const toggleNotifications = async () => {
@@ -55,11 +64,12 @@ export function SettingsPage() {
           <div className="settings-title"><span>01</span><div><h2>Цикл и ритм</h2><p>Основные ориентиры программы</p></div></div>
           <div className="form-grid two">
             <Field label="Имя"><input value={settings.name} onChange={(e) => updateSettings({ name: e.target.value })} /></Field>
-            <Field label="Начало программы"><input type="date" value={settings.programStart} onChange={(e) => updateSettings({ programStart: e.target.value })} /></Field>
+            <Field label="Начало программы"><input type="date" disabled={Object.keys(store.dailyPlans).length > 0} value={store.cycle.startDate} onChange={(e) => updateSettings({ programStart: e.target.value })} /><small>{Object.keys(store.dailyPlans).length > 0 ? 'Дата зафиксирована после создания первого плана' : 'Можно изменить до старта'}</small></Field>
             <Field label="Желаемый сон"><input type="time" value={settings.sleepTarget} onChange={(e) => updateSettings({ sleepTarget: e.target.value })} /></Field>
             <Field label="Подъём"><input type="time" value={settings.wakeTarget} onChange={(e) => updateSettings({ wakeTarget: e.target.value })} /></Field>
             <Field label="Начальная цель шагов"><div className="inline-input"><input type="number" step="500" min="1000" value={settings.baseStepGoal} onChange={(e) => updateSettings({ baseStepGoal: Number(e.target.value) })} /><span>шагов</span></div></Field>
             <Field label="Brain session"><div className="inline-input"><input type="number" min="5" max="120" value={settings.brainMinutes} onChange={(e) => updateSettings({ brainMinutes: Number(e.target.value) })} /><span>мин</span></div></Field>
+            <Field label="Единицы"><select value={settings.units} onChange={(e) => updateSettings({ units: e.target.value as 'metric' | 'imperial' })}><option value="metric">Килограммы</option><option value="imperial">Фунты</option></select></Field>
           </div>
           <Field label="Дни тренировок"><div className="day-picker">{weekdays.map((label, day) => <button key={label} className={settings.workoutDays.includes(day) ? 'active' : ''} onClick={() => updateSettings({ workoutDays: settings.workoutDays.includes(day) ? settings.workoutDays.filter((d) => d !== day) : [...settings.workoutDays, day] })}>{label}</button>)}</div></Field>
         </Card>

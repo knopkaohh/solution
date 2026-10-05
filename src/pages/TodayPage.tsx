@@ -1,161 +1,186 @@
-import { useState } from 'react'
-import { Brain, Check, ChevronRight, Coffee, Footprints, MoonStar, Plus, Scale, Trash2, Utensils } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { addDays, format, parseISO } from 'date-fns'
+import { Link } from 'react-router-dom'
+import { Brain, Check, ChevronLeft, ChevronRight, Dumbbell, MoonStar, ShieldCheck } from 'lucide-react'
 import { Card, Field, PageTitle, Ring } from '../components'
-import { getBrainTask, getMissions, getPhase, getStepGoal } from '../program'
+import { calculateScores } from '../scoring'
 import { useAppStore } from '../store'
-import { calculateDayScore, formatDate, formatDuration, getProgramDay, minutesBetween, todayKey, uid } from '../utils'
+import type { ActionStatus, DayCondition, NutritionItem } from '../types'
+import { formatDate, getProgramPosition, minutesBetween, todayKey, uid } from '../utils'
+
+const statusLabels: Record<ActionStatus, string> = {
+  FULL: 'FULL', MINIMUM: 'MINIMUM', PARTIAL: 'PARTIAL', MISSED: 'MISSED',
+  NOT_APPLICABLE: 'N/A', UNVERIFIED: 'UNVERIFIED', RECOVERY_ACTION_FULL: 'RECOVERY',
+}
 
 export function TodayPage() {
   const store = useAppStore()
-  const date = todayKey()
-  const day = getProgramDay(store.settings.programStart)
-  const phase = getPhase(day)
-  const missions = getMissions(day, date, store.settings)
-  const daily = store.dailyLogs[date] ?? { date, completedTaskIds: [] }
+  const [date, setDate] = useState(todayKey())
+  const [flow, setFlow] = useState<'morning' | 'evening'>('morning')
+  const [weight, setWeight] = useState('')
+  const [modeReason, setModeReason] = useState('Высокая нагрузка')
+  const [food, setFood] = useState({ name: '', calories: '', protein: '', fat: '', carbs: '' })
+  const position = getProgramPosition(store.cycle.startDate, date)
+  const ensureDailyPlan = store.ensureDailyPlan
+
+  useEffect(() => {
+    ensureDailyPlan(date)
+  }, [date, ensureDailyPlan])
+
+  const plan = store.dailyPlans[date]
+  const daily = store.dailyLogs[date]
   const sleep = store.sleepLogs[date]
-  const nutrition = store.nutritionLogs[date] ?? { date, meals: 0, sweets: false, coffee: 0, items: [] }
-  const brainDone = store.brainSessions.some((session) => session.date === date && session.completed)
-  const workoutDone = store.workouts.some((session) => session.date === date && session.completed)
-  const brainTask = getBrainTask(day)
-  const stepGoal = getStepGoal(day, store.settings)
-  const { score, breakdown } = calculateDayScore(store, date)
-  const [logOpen, setLogOpen] = useState(false)
-  const [mealType, setMealType] = useState<'Завтрак' | 'Обед' | 'Ужин' | 'Перекус'>('Обед')
-  const [food, setFood] = useState({ name: '', amount: '', calories: '', protein: '', fat: '', carbs: '' })
+  const nutrition = store.nutritionLogs[date]
+  const scores = useMemo(() => plan ? calculateScores(store, plan) : undefined, [store, plan])
+  const latestWeight = [...store.weightMeasurements].filter((item) => item.timestamp.startsWith(date)).at(-1)
 
-  const updateSleepTime = (key: 'fellAsleep' | 'wokeUp', value: string) => {
+  const changeDate = (amount: number) => setDate(format(addDays(parseISO(date), amount), 'yyyy-MM-dd'))
+  const updateSleepTime = (key: 'sleepOnset' | 'wakeTime', value: string) => {
     const next = { ...sleep, [key]: value }
-    store.updateSleep(date, { [key]: value, durationMinutes: minutesBetween(next.fellAsleep, next.wokeUp) })
+    store.updateSleep(date, { [key]: value, durationMinutes: minutesBetween(next.sleepOnset, next.wakeTime) })
   }
-
-  const completeBrain = () => {
-    const previous = store.brainSessions.find((session) => session.date === date)
-    store.saveBrainSession({
-      id: previous?.id ?? uid(), date, category: brainTask.category,
-      minutes: store.settings.brainMinutes, completed: !brainDone,
-    })
+  const activateMode = (mode: 'normal' | 'minimum' | 'recovery') => {
+    store.setDayMode(date, mode, mode === 'normal' ? 'Возврат к исходному плану' : modeReason)
+  }
+  const addWeight = () => {
+    const value = Number(weight)
+    if (value > 0) {
+      store.addWeight(date, value)
+      setWeight('')
+    }
   }
   const addFood = () => {
     if (!food.name.trim()) return
-    store.updateNutrition(date, {
-      items: [...nutrition.items, {
-        id: uid(), meal: mealType, name: food.name.trim(), amount: food.amount,
-        calories: Number(food.calories) || undefined, protein: Number(food.protein) || undefined,
-        fat: Number(food.fat) || undefined, carbs: Number(food.carbs) || undefined,
-      }],
-      meals: Math.max(nutrition.meals, new Set([...nutrition.items.map((item) => item.meal), mealType]).size),
-    })
-    setFood({ name: '', amount: '', calories: '', protein: '', fat: '', carbs: '' })
+    const item: NutritionItem = {
+      id: uid(), meal: 'Обед', name: food.name.trim(),
+      calories: Number(food.calories) || undefined, protein: Number(food.protein) || undefined,
+      fat: Number(food.fat) || undefined, carbs: Number(food.carbs) || undefined,
+    }
+    store.updateNutrition(date, { items: [...(nutrition?.items ?? []), item] })
+    setFood({ name: '', calories: '', protein: '', fat: '', carbs: '' })
   }
+
+  if (position.status !== 'ACTIVE') {
+    return (
+      <>
+        <PageTitle eyebrow="PERSONAL 90" title={position.status === 'BEFORE' ? 'Цикл ещё не начался.' : 'Цикл завершён.'} description={position.status === 'BEFORE' ? `Старт — ${formatDate(store.cycle.startDate)}.` : 'Все 90 дней сохранены. Итог доступен в Progress.'} />
+        <Card className="empty">{position.status === 'BEFORE' ? 'До старта можно изменить дату программы в Settings.' : 'Исторические данные доступны в календаре и отчётах.'}</Card>
+      </>
+    )
+  }
+
+  if (!plan || !scores) return <div className="page-loader">Создаём план дня…</div>
 
   return (
     <>
       <PageTitle
-        eyebrow={`${formatDate(date, 'EEEE, d MMMM')} · Москва`}
-        title={`Добрый вечер, ${store.settings.name}.`}
-        description={`День ${day} из 90 · ${phase.name}. Сегодня достаточно сделать главное.`}
-        action={<button className="primary" onClick={() => setLogOpen(!logOpen)}><Plus size={18} /> Быстрый check-in</button>}
+        eyebrow={`${formatDate(date, 'EEEE, d MMMM')} · DAY ${plan.programDay} / 90`}
+        title={date === todayKey() ? `Сегодня · ${plan.phase}` : `${formatDate(date)} · ${plan.phase}`}
+        description={plan.mode === 'normal' ? 'Факты автоматически определяют выполнение плана.' : plan.mode === 'minimum' ? 'Minimum Day сохраняет ритм, но не считается полным днём.' : 'Recovery — отдельный режим восстановления, не провал.'}
+        action={<div className="date-navigation"><button className="icon-button secondary" onClick={() => changeDate(-1)}><ChevronLeft /></button><input aria-label="Дата журнала" type="date" value={date} onChange={(event) => setDate(event.target.value)} /><button className="icon-button secondary" disabled={date >= todayKey()} onClick={() => changeDate(1)}><ChevronRight /></button></div>}
       />
 
-      {logOpen && (
-        <Card className="quick-log">
-          <div className="section-heading"><div><span className="eyebrow">DAILY LOG</span><h2>Быстрый check-in</h2></div><button className="text-button" onClick={() => setLogOpen(false)}>Готово</button></div>
-          <div className="form-grid">
-            <Field label="Вес, кг"><input type="number" step=".1" value={daily.weight ?? ''} placeholder="120.0" onChange={(e) => store.updateDaily(date, { weight: Number(e.target.value) || undefined })} /></Field>
-            <Field label="Шаги"><input type="number" value={daily.steps ?? ''} placeholder="0" onChange={(e) => store.updateDaily(date, { steps: Number(e.target.value) || undefined })} /></Field>
-            <Field label="Заснул"><input type="time" value={sleep?.fellAsleep ?? ''} onChange={(e) => updateSleepTime('fellAsleep', e.target.value)} /></Field>
-            <Field label="Проснулся"><input type="time" value={sleep?.wokeUp ?? ''} onChange={(e) => updateSleepTime('wokeUp', e.target.value)} /></Field>
-            <Field label="Качество сна"><input type="range" min="1" max="10" value={sleep?.quality ?? 5} onChange={(e) => store.updateSleep(date, { quality: Number(e.target.value) })} /><b>{sleep?.quality ?? 5}/10</b></Field>
-            <Field label="Приёмов пищи"><input type="number" min="0" max="8" value={nutrition.meals} onChange={(e) => store.updateNutrition(date, { meals: Number(e.target.value) })} /></Field>
-          </div>
-        </Card>
-      )}
-
-      <div className="dashboard-grid">
-        <Card className="score-card">
-          <div>
-            <span className="eyebrow">DAY SCORE</span>
-            <h2>Выполнение системы</h2>
-            <p>Не оценка здоровья. Просто ориентир, насколько план дня выполнен.</p>
-          </div>
-          <Ring value={score} />
-          <div className="score-breakdown">
-            {Object.entries(breakdown).map(([label, value]) => {
-              const max = label === 'Сон' || label === 'Движение' || label === 'Мозг' ? 20 : label === 'Дисциплина' ? 10 : 15
-              return <div key={label}><span>{label}</span><i><b style={{ width: `${(value / max) * 100}%` }} /></i><em>+{value}</em></div>
-            })}
-          </div>
-        </Card>
-
-        <Card className="missions-card">
-          <div className="section-heading"><div><span className="eyebrow">TODAY'S MISSIONS</span><h2>{daily.completedTaskIds.length} из {missions.length} выполнено</h2></div><span className="calm-pill">NO ZERO DAY</span></div>
-          <div className="mission-list">
-            {missions.map((mission) => {
-              const done = daily.completedTaskIds.includes(mission.id)
-              return (
-                <button key={mission.id} className={`mission ${done ? 'done' : ''}`} onClick={() => store.toggleTask(date, mission.id)}>
-                  <span className="checkbox">{done && <Check size={15} />}</span>
-                  <span><small>{mission.area}</small><strong>{mission.title}</strong><em>{mission.detail}</em></span>
-                  <ChevronRight size={18} />
-                </button>
-              )
-            })}
-          </div>
-          <p className="reassurance">Один сложный день не обнуляет систему. Завтра просто продолжаем.</p>
-        </Card>
+      <div className="flow-tabs">
+        <button className={flow === 'morning' ? 'active' : ''} onClick={() => setFlow('morning')}><span>01</span> Утро · план</button>
+        <button className={flow === 'evening' ? 'active' : ''} onClick={() => setFlow('evening')}><span>02</span> Вечер · факты</button>
       </div>
 
-      <div className="metric-grid">
-        <Card className="daily-card">
-          <div className="card-icon"><MoonStar /></div><span className="eyebrow">СОН</span>
-          <h3>{formatDuration(sleep?.durationMinutes)}</h3>
-          <p>{sleep?.fellAsleep || '—'} → {sleep?.wokeUp || '—'} <span>· цель {store.settings.sleepTarget} → {store.settings.wakeTarget}</span></p>
-          <div className="mini-row"><span>Качество</span><b>{sleep?.quality ? `${sleep.quality}/10` : 'Не указано'}</b></div>
-          <details><summary>Добавить детали</summary><div className="details-grid">
-            <Field label="Лёг"><input type="time" value={sleep?.wentToBed ?? ''} onChange={(e) => store.updateSleep(date, { wentToBed: e.target.value })} /></Field>
-            <Field label="Встал"><input type="time" value={sleep?.gotUp ?? ''} onChange={(e) => store.updateSleep(date, { gotUp: e.target.value })} /></Field>
-            <Field label="Пробуждений"><input type="number" min="0" value={sleep?.awakenings ?? ''} onChange={(e) => store.updateSleep(date, { awakenings: Number(e.target.value) })} /></Field>
-            <Field label="Дневной сон, мин"><input type="number" min="0" value={sleep?.napMinutes ?? ''} onChange={(e) => store.updateSleep(date, { napMinutes: Number(e.target.value) })} /></Field>
-          </div></details>
-          <small className="health-note">Если храп или нарушения сна выражены, их стоит спокойно обсудить с врачом. Приложение не ставит диагнозов.</small>
-        </Card>
+      {flow === 'morning' ? (
+        <div className="today-flow">
+          <Card className="checkin-card">
+            <div className="section-heading"><div><span className="eyebrow">MORNING CHECK-IN</span><h2>Как ты восстановился?</h2></div><MoonStar /></div>
+            <div className="form-grid two">
+              <Field label="Заснул"><input type="time" value={sleep?.sleepOnset ?? ''} onChange={(event) => updateSleepTime('sleepOnset', event.target.value)} /></Field>
+              <Field label="Проснулся"><input type="time" value={sleep?.wakeTime ?? ''} onChange={(event) => updateSleepTime('wakeTime', event.target.value)} /></Field>
+              <Field label={`Качество · ${sleep?.quality ?? '—'}/10`}><input type="range" min="1" max="10" value={sleep?.quality ?? 5} onChange={(event) => store.updateSleep(date, { quality: Number(event.target.value) })} /></Field>
+              <Field label={`Готовность · ${daily?.readiness ?? '—'}/5`}><input type="range" min="1" max="5" value={daily?.readiness ?? 3} onChange={(event) => store.updateDaily(date, { readiness: Number(event.target.value) })} /></Field>
+            </div>
+            <Field label="Состояние"><div className="condition-picker">{([
+              ['normal', 'Normal'], ['tired', 'Tired'], ['pain', 'Pain'], ['ill', 'Ill'],
+            ] as [DayCondition, string][]).map(([value, label]) => <button key={value} aria-label={label} className={daily?.condition === value ? 'active' : ''} onClick={() => store.updateDaily(date, { condition: value })}>{label}</button>)}</div></Field>
+            <details><summary>Дополнительные данные сна</summary><div className="details-grid">
+              <Field label="Лёг"><input type="time" value={sleep?.bedtime ?? ''} onChange={(event) => store.updateSleep(date, { bedtime: event.target.value })} /></Field>
+              <Field label="Встал"><input type="time" value={sleep?.getUpTime ?? ''} onChange={(event) => store.updateSleep(date, { getUpTime: event.target.value })} /></Field>
+              <Field label="Пробуждений"><input type="number" min="0" value={sleep?.awakenings ?? ''} onChange={(event) => store.updateSleep(date, { awakenings: Number(event.target.value) })} /></Field>
+              <Field label="Последний кофе"><input type="time" value={sleep?.lastCaffeineAt ?? ''} onChange={(event) => store.updateSleep(date, { lastCaffeineAt: event.target.value })} /></Field>
+            </div></details>
+          </Card>
 
-        <Card className="daily-card">
-          <div className="card-icon"><Footprints /></div><span className="eyebrow">BODY</span>
-          <h3>{(daily.steps ?? 0).toLocaleString('ru-RU')} <small>/ {stepGoal.toLocaleString('ru-RU')}</small></h3>
-          <div className="progress large"><i style={{ width: `${Math.min(100, ((daily.steps ?? 0) / stepGoal) * 100)}%` }} /></div>
-          <div className="mini-row"><span><Scale size={15} /> Вес</span><b>{daily.weight ? `${daily.weight} кг` : 'Добавить'}</b></div>
-          <div className="mini-row"><span>Тренировка</span><b className={workoutDone ? 'positive' : ''}>{workoutDone ? 'Выполнена' : missions.some((m) => m.area === 'GYM') ? 'Запланирована' : 'День восстановления'}</b></div>
-        </Card>
+          <Card className="plan-card">
+            <div className="section-heading"><div><span className="eyebrow">TODAY'S PLAN · {plan.mode.toUpperCase()}</span><h2>Что сделать сегодня</h2></div><span className={`mode-badge ${plan.mode}`}>{plan.mode}</span></div>
+            <div className="mission-list">
+              {plan.plannedActions.filter((action) => action.applicable && action.priority !== 'optional').map((action) => {
+                const result = scores.actionEvaluations[action.id]
+                const done = ['FULL', 'MINIMUM', 'RECOVERY_ACTION_FULL'].includes(result.status)
+                return (
+                  <button key={action.id} className={`mission evaluation-${result.status.toLowerCase()} ${done ? 'done' : ''}`} disabled={!action.manualAllowed} onClick={() => action.manualAllowed && store.toggleManualAction(date, action.id)}>
+                    <span className="checkbox">{done && <Check size={15} />}</span>
+                    <span><small>{action.domain} · {action.priority}</small><strong>{action.label}</strong><em>{result.explanation}</em></span>
+                    <b className={`action-status ${result.status.toLowerCase()}`}>{statusLabels[result.status]}</b>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="plan-actions">
+              <select aria-label="Причина изменения режима" value={modeReason} onChange={(event) => setModeReason(event.target.value)}>
+                <option>Высокая нагрузка</option><option>Выраженная усталость</option><option>Боль</option><option>Болезнь</option><option>Другое</option>
+              </select>
+              {plan.mode !== 'minimum' && <button className="secondary" onClick={() => activateMode('minimum')}>Minimum Day</button>}
+              {plan.mode !== 'recovery' && <button className="secondary" onClick={() => activateMode('recovery')}><ShieldCheck size={16} /> Recovery</button>}
+              {plan.mode !== 'normal' && <button className="text-button" onClick={() => activateMode('normal')}>Вернуть исходный план</button>}
+            </div>
+            <small className="health-note">Recovery не является медицинской рекомендацией. При выраженной боли или ухудшении самочувствия не продолжай нагрузку через силу.</small>
+          </Card>
+        </div>
+      ) : (
+        <div className="evening-layout">
+          <Card>
+            <span className="eyebrow">MOVEMENT & BODY</span><h2>Что произошло?</h2>
+            <div className="form-grid two">
+              <Field label="Шаги"><input type="number" min="0" value={daily?.steps ?? ''} placeholder={String(plan.targetsSnapshot.stepsFull)} onChange={(event) => store.updateDaily(date, { steps: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} /></Field>
+              <Field label="Спокойное движение, мин"><input type="number" min="0" value={daily?.movementMinutes ?? ''} onChange={(event) => store.updateDaily(date, { movementMinutes: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} /></Field>
+              <Field label={`Вес, ${store.settings.units === 'metric' ? 'кг' : 'lb'}`}><div className="inline-action"><input type="number" step=".1" value={weight} placeholder={latestWeight ? String(latestWeight.value) : '—'} onChange={(event) => setWeight(event.target.value)} /><button className="secondary" onClick={addWeight}>Добавить</button></div></Field>
+              <Field label="Сложность дня"><select value={daily?.difficulty ?? ''} onChange={(event) => store.updateDaily(date, { difficulty: event.target.value as DailyLogDifficulty })}><option value="">Не выбрано</option><option value="easier">Легче плана</option><option value="as-planned">По плану</option><option value="harder">Тяжелее плана</option></select></Field>
+            </div>
+            {latestWeight?.suspicious && !latestWeight.confirmed && <div className="soft-note">Изменение веса больше 3%. Проверь значение. <button className="text-button" onClick={() => store.confirmWeight(latestWeight.id)}>Подтвердить</button></div>}
+          </Card>
 
-        <Card className="daily-card">
-          <div className="card-icon"><Utensils /></div><span className="eyebrow">NUTRITION · {store.settings.nutritionMode}</span>
-          <h3>{nutrition.meals} <small>приёма пищи</small></h3>
-          <div className="counter-row"><span>Сладкое</span><button className={nutrition.sweets ? 'selected' : ''} onClick={() => store.updateNutrition(date, { sweets: !nutrition.sweets })}>{nutrition.sweets ? 'Да' : 'Нет'}</button></div>
-          <div className="counter-row"><span><Coffee size={15} /> Кофе</span><div><button onClick={() => store.updateNutrition(date, { coffee: Math.max(0, nutrition.coffee - 1) })}>−</button><b>{nutrition.coffee}</b><button onClick={() => store.updateNutrition(date, { coffee: nutrition.coffee + 1 })}>+</button></div></div>
-          <div className="mini-row"><span>Оценка питания</span><b>{nutrition.rating ? `${nutrition.rating}/10` : 'Не указано'}</b></div>
-          <details><summary>Оценить питание</summary><Field label={`${nutrition.rating ?? 5} / 10`}><input type="range" min="1" max="10" value={nutrition.rating ?? 5} onChange={(e) => store.updateNutrition(date, { rating: Number(e.target.value) })} /></Field></details>
-        </Card>
+          <Card>
+            <span className="eyebrow">NUTRITION</span><h2>Быстрая фиксация</h2>
+            <div className="form-grid two">
+              <Field label="Приёмов пищи"><input type="number" min="0" max="10" value={nutrition?.meals ?? ''} onChange={(event) => store.updateNutrition(date, { meals: event.target.value === '' ? undefined : Number(event.target.value) })} /></Field>
+              <Field label="Кофе"><input type="number" min="0" max="15" value={nutrition?.coffee ?? ''} onChange={(event) => store.updateNutrition(date, { coffee: event.target.value === '' ? undefined : Number(event.target.value) })} /></Field>
+              <BooleanChoice label="Сладкое" value={nutrition?.sweets} onChange={(value) => store.updateNutrition(date, { sweets: value })} />
+              <BooleanChoice label="Fast food" value={nutrition?.fastFood} onChange={(value) => store.updateNutrition(date, { fastFood: value })} />
+            </div>
+            {plan.targetsSnapshot.nutritionMode === 'advanced' && <div className="advanced-inline">
+              <input placeholder="Блюдо" value={food.name} onChange={(event) => setFood({ ...food, name: event.target.value })} />
+              <input type="number" placeholder="Ккал" value={food.calories} onChange={(event) => setFood({ ...food, calories: event.target.value })} />
+              <input type="number" placeholder="Белок" value={food.protein} onChange={(event) => setFood({ ...food, protein: event.target.value })} />
+              <button className="secondary" onClick={addFood}>Добавить</button>
+            </div>}
+          </Card>
 
-        <Card className="daily-card">
-          <div className="card-icon"><Brain /></div><span className="eyebrow">{brainTask.category}</span>
-          <h3>{brainTask.title}</h3><p>{brainTask.detail}</p>
-          <button className={brainDone ? 'complete-button done' : 'complete-button'} onClick={completeBrain}>{brainDone ? <><Check size={17} /> Выполнено</> : `Начать · ${store.settings.brainMinutes} мин`}</button>
-        </Card>
-      </div>
-      {store.settings.nutritionMode === 'advanced' && (
-        <Card className="nutrition-advanced">
-          <div className="section-heading"><div><span className="eyebrow">ADVANCED NUTRITION</span><h2>Дневник питания</h2></div><span className="calm-pill">ВСЕ ПОЛЯ ОПЦИОНАЛЬНЫ</span></div>
-          <div className="meal-picker">{(['Завтрак', 'Обед', 'Ужин', 'Перекус'] as const).map((meal) => <button key={meal} className={mealType === meal ? 'active' : ''} onClick={() => setMealType(meal)}>{meal}</button>)}</div>
-          <div className="food-form">
-            <Field label="Блюдо"><input placeholder="Например, гречка с курицей" value={food.name} onChange={(e) => setFood({ ...food, name: e.target.value })} /></Field>
-            <Field label="Количество"><input placeholder="300 г" value={food.amount} onChange={(e) => setFood({ ...food, amount: e.target.value })} /></Field>
-            {(['calories', 'protein', 'fat', 'carbs'] as const).map((key) => <Field key={key} label={{ calories: 'Ккал', protein: 'Белок', fat: 'Жиры', carbs: 'Углеводы' }[key]}><input type="number" value={food[key]} onChange={(e) => setFood({ ...food, [key]: e.target.value })} /></Field>)}
-            <button className="primary" onClick={addFood}><Plus size={16} />Добавить</button>
-          </div>
-          {nutrition.items.length > 0 && <div className="food-list">{nutrition.items.map((item) => <div key={item.id}><span><small>{item.meal}</small><b>{item.name}</b><em>{item.amount}</em></span><span>{item.calories ?? '—'} ккал · Б {item.protein ?? '—'} · Ж {item.fat ?? '—'} · У {item.carbs ?? '—'}</span><button className="icon-button" onClick={() => store.updateNutrition(date, { items: nutrition.items.filter((foodItem) => foodItem.id !== item.id) })}><Trash2 size={15} /></button></div>)}</div>}
-        </Card>
+          <Card className="session-summary">
+            <span className="eyebrow">SESSIONS</span><h2>Тренировка и Mind</h2>
+            <Link to="/training"><Dumbbell /><span><b>{plan.targetsSnapshot.workoutTemplate ? `Workout ${plan.targetsSnapshot.workoutTemplate}` : 'День без силовой'}</b><small>{scores.domainScores.training !== undefined ? `${scores.domainScores.training}/100` : 'Нет факта'}</small></span><ChevronRight /></Link>
+            <Link to="/brain"><Brain /><span><b>Brain · {plan.targetsSnapshot.brainMinutesFull} минут</b><small>{scores.domainScores.mind !== undefined ? `${scores.domainScores.mind}/100` : 'Нет факта'}</small></span><ChevronRight /></Link>
+            <Field label="Заметка"><textarea rows={2} value={daily?.note ?? ''} onChange={(event) => store.updateDaily(date, { note: event.target.value })} /></Field>
+          </Card>
+
+          <Card className="day-result">
+            <div><span className="eyebrow">EXECUTION</span><Ring value={scores.executionScore ?? 0} size={104} /><small>{scores.executionScore === undefined ? 'Нет подтверждённых действий' : 'Выполнение плана'}</small></div>
+            <div><span className="eyebrow">DAY SCORE</span><Ring value={scores.dayScore ?? 0} size={104} /><small>{scores.preliminary ? 'Предварительно · мало данных' : `Полнота данных ${scores.completeness}%`}</small></div>
+            <div className="result-actions"><b>{scores.dayStatus}</b><button className="primary" onClick={() => store.closeDay(date)}>{daily?.closedAt ? 'Пересчитать день' : 'Завершить день'}</button></div>
+          </Card>
+        </div>
       )}
     </>
   )
+}
+
+type DailyLogDifficulty = 'easier' | 'as-planned' | 'harder'
+
+function BooleanChoice({ label, value, onChange }: { label: string; value?: boolean; onChange: (value: boolean) => void }) {
+  return <Field label={label}><div className="boolean-choice"><button aria-label="Нет" className={value === false ? 'active' : ''} onClick={() => onChange(false)}>Нет</button><button aria-label="Да" className={value === true ? 'active' : ''} onClick={() => onChange(true)}>Да</button></div></Field>
 }
