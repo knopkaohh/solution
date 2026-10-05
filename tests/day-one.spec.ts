@@ -1,13 +1,20 @@
 import { expect, test } from '@playwright/test'
 import { Buffer } from 'node:buffer'
 
+test.beforeEach(async ({ page }) => {
+  await page.goto('./')
+  await page.getByLabel('Пароль').fill('0328')
+  await page.getByRole('button', { name: 'Открыть приложение' }).click()
+  await expect(page.getByRole('heading', { name: /Сегодня/ })).toBeVisible()
+})
+
 test('a complete day uses facts, persists, and can be backed up', async ({ page }) => {
   const errors: string[] = []
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text())
   })
   await page.clock.install()
-  await page.goto('/')
+  await page.goto('./')
 
   await expect(page.getByRole('heading', { name: /Сегодня/ })).toBeVisible()
   await expect(page.getByText(/Что нужно сделать/)).toBeVisible()
@@ -85,7 +92,7 @@ test('a complete day uses facts, persists, and can be backed up', async ({ page 
 })
 
 test('minimum and recovery are distinct modes', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('./')
   await page.getByRole('button', { name: 'Упростить день' }).click()
   await expect(page.locator('.mode-badge')).toHaveText('Минимальный день')
   await page.getByRole('button', { name: /Восстановление/ }).click()
@@ -95,10 +102,19 @@ test('minimum and recovery are distinct modes', async ({ page }) => {
 
 test('mobile navigation exposes all sections', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
-  await page.goto('/')
+  await page.goto('./')
   const nav = page.locator('.bottom-nav')
   await expect(nav.getByRole('link')).toHaveCount(5)
   await nav.getByRole('link', { name: /Ещё/ }).click()
   await page.getByRole('link', { name: /Настройки/ }).click()
   await expect(page.getByRole('heading', { name: 'Настрой систему под себя.' })).toBeVisible()
+})
+
+test('password gate rejects an incorrect password', async ({ page }) => {
+  await page.evaluate(() => sessionStorage.clear())
+  await page.reload()
+  await page.getByLabel('Пароль').fill('1111')
+  await page.getByRole('button', { name: 'Открыть приложение' }).click()
+  await expect(page.getByText('Неверный пароль')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Сегодня' })).toHaveCount(0)
 })
