@@ -13,6 +13,7 @@ const initialData = createInitialData()
 
 interface Store extends AppData {
   updateSettings: (patch: Partial<Settings>) => void
+  changeProgramStart: (date: string) => void
   ensureDailyPlan: (date: string) => void
   setDayMode: (date: string, mode: DayMode, reason: string) => void
   updateDaily: (date: string, patch: Partial<DailyLog>) => void
@@ -61,6 +62,24 @@ export const useAppStore = create<Store>()(
           : state.cycle
         return { settings, cycle }
       }),
+      changeProgramStart: (date) => set((state) => ({
+        settings: { ...state.settings, programStart: date },
+        cycle: {
+          ...state.cycle,
+          id: uid(),
+          startDate: date,
+          createdAt: new Date().toISOString(),
+        },
+        dailyPlans: {},
+        planRevisions: {},
+        scoreSnapshots: {},
+        weeklyReviews: [],
+        monthlyReviews: [],
+        dailyLogs: Object.fromEntries(Object.entries(state.dailyLogs).map(([key, log]) => [
+          key,
+          { ...log, manualActionIds: [], closedAt: undefined, updatedAt: new Date().toISOString() },
+        ])),
+      })),
       ensureDailyPlan: (date) => set((state) => {
         if (state.dailyPlans[date]) return state
         const position = getProgramPosition(state.cycle.startDate, date)

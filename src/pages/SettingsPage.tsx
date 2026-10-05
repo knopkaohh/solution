@@ -9,7 +9,16 @@ export function SettingsPage() {
   const { settings, updateSettings } = store
   const fileRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState('')
+  const [programStart, setProgramStart] = useState(store.cycle.startDate)
   const weekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+
+  const saveProgramStart = () => {
+    if (!programStart || programStart === store.cycle.startDate) return
+    const hasPlans = Object.keys(store.dailyPlans).length > 0
+    if (hasPlans && !window.confirm('Изменить дату начала цикла? Планы и расчёты программы будут пересозданы. Внесённые факты о сне, питании, тренировках и других показателях сохранятся.')) return
+    store.changeProgramStart(programStart)
+    setMessage('Дата начала изменена. План цикла пересчитан, фактические записи сохранены.')
+  }
 
   const exportData = () => {
     const data: AppData = {
@@ -64,7 +73,13 @@ export function SettingsPage() {
           <div className="settings-title"><span>01</span><div><h2>Цикл и ритм</h2><p>Основные ориентиры программы</p></div></div>
           <div className="form-grid two">
             <Field label="Имя"><input value={settings.name} onChange={(e) => updateSettings({ name: e.target.value })} /></Field>
-            <Field label="Начало программы"><input type="date" disabled={Object.keys(store.dailyPlans).length > 0} value={store.cycle.startDate} onChange={(e) => updateSettings({ programStart: e.target.value })} /><small>{Object.keys(store.dailyPlans).length > 0 ? 'Дата зафиксирована после создания первого плана' : 'Можно изменить до старта'}</small></Field>
+            <Field label="Начало программы">
+              <div className="date-setting">
+                <input aria-label="Начало программы" type="date" value={programStart} onChange={(e) => setProgramStart(e.target.value)} />
+                <button className="secondary" disabled={!programStart || programStart === store.cycle.startDate} onClick={saveProgramStart}>Сохранить дату</button>
+              </div>
+              <small>При изменении даты планы пересчитаются, а внесённые факты сохранятся.</small>
+            </Field>
             <Field label="Желаемый сон"><input type="time" value={settings.sleepTarget} onChange={(e) => updateSettings({ sleepTarget: e.target.value })} /></Field>
             <Field label="Подъём"><input type="time" value={settings.wakeTarget} onChange={(e) => updateSettings({ wakeTarget: e.target.value })} /></Field>
             <Field label="Начальная цель шагов"><div className="inline-input"><input type="number" step="500" min="1000" value={settings.baseStepGoal} onChange={(e) => updateSettings({ baseStepGoal: Number(e.target.value) })} /><span>шагов</span></div></Field>

@@ -124,3 +124,13 @@ test('password gate rejects an incorrect password', async ({ page }) => {
   await expect(page.getByText('Неверный пароль')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Сегодня' })).toHaveCount(0)
 })
+
+test('program start date can be changed after the first plan was created', async ({ page }) => {
+  await page.goto('./settings')
+  await page.getByLabel('Начало программы').fill('2026-10-01')
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Сохранить дату' }).click()
+  await expect(page.getByText(/Дата начала изменена/)).toBeVisible()
+  await page.goto('./')
+  await expect(page.getByText(/ДЕНЬ 5 ИЗ 90/)).toBeVisible()
+})
