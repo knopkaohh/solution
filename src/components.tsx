@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Brain, CalendarDays, ChartNoAxesCombined, Dumbbell, LayoutDashboard, Settings, Sun, Moon } from 'lucide-react'
+import { Brain, CalendarDays, ChartNoAxesCombined, Dumbbell, Ellipsis, LayoutDashboard, Settings, Sun, Moon, Utensils } from 'lucide-react'
 import { useAppStore } from './store'
 import { getPhase } from './program'
 import { getProgramPosition } from './utils'
+import { phaseLabel } from './localization'
+import type { ProgramPhase } from './types'
 
 export function Shell({ children }: { children: ReactNode }) {
   const settings = useAppStore((state) => state.settings)
@@ -16,10 +18,18 @@ export function Shell({ children }: { children: ReactNode }) {
   const nav = [
     { to: '/', label: 'Сегодня', icon: LayoutDashboard },
     { to: '/days', label: '90 дней', icon: CalendarDays },
-    { to: '/training', label: 'Тренировки', icon: Dumbbell },
-    { to: '/brain', label: 'Brain Lab', icon: Brain },
+    { to: '/nutrition', label: 'Питание', icon: Utensils },
+    { to: '/training', label: 'Тренировка', icon: Dumbbell },
+    { to: '/brain', label: 'Мышление', icon: Brain },
     { to: '/progress', label: 'Прогресс', icon: ChartNoAxesCombined },
     { to: '/settings', label: 'Настройки', icon: Settings },
+  ]
+  const mobileNav = [
+    { to: '/', label: 'Сегодня', icon: LayoutDashboard },
+    { to: '/nutrition', label: 'Питание', icon: Utensils },
+    { to: '/training', label: 'Тренировка', icon: Dumbbell },
+    { to: '/brain', label: 'Мышление', icon: Brain },
+    { to: '/more', label: 'Ещё', icon: Ellipsis },
   ]
 
   const switchTheme = () => updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
@@ -27,12 +37,12 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">P90</span><span>PERSONAL<br /><b>OPERATING SYSTEM</b></span></div>
+        <div className="brand"><span className="brand-mark">П90</span><span>ЛИЧНАЯ<br /><b>СИСТЕМА РАЗВИТИЯ</b></span></div>
         <div className="cycle">
           <div className="eyebrow">ТЕКУЩИЙ ЦИКЛ</div>
           <strong>{position.status === 'BEFORE' ? 'До старта' : position.status === 'COMPLETED' ? 'Цикл завершён' : `День ${day}`} <span>{position.status === 'ACTIVE' ? '/ 90' : ''}</span></strong>
           <div className="progress"><i style={{ width: `${(day / 90) * 100}%` }} /></div>
-          <small>PHASE {phase.id} · {phase.name}</small>
+          <small>ЭТАП {phase.id} · {phaseLabel[phase.name as ProgramPhase]}</small>
         </div>
         <nav>
           {nav.map(({ to, label, icon: Icon }) => (
@@ -46,14 +56,14 @@ export function Shell({ children }: { children: ReactNode }) {
       </aside>
       <main>
         <header className="mobile-header">
-          <div className="brand"><span className="brand-mark">P90</span></div>
-          <span>{position.status === 'ACTIVE' ? `День ${day} · ${phase.name}` : position.status === 'BEFORE' ? 'До старта' : 'Цикл завершён'}</span>
+          <div className="brand"><span className="brand-mark">П90</span></div>
+          <span>{position.status === 'ACTIVE' ? `День ${day} · ${phaseLabel[phase.name as ProgramPhase]}` : position.status === 'BEFORE' ? 'До старта' : 'Цикл завершён'}</span>
           <button className="icon-button" onClick={switchTheme}>{settings.theme === 'dark' ? <Sun /> : <Moon />}</button>
         </header>
         <div className="page" key={location.pathname}>{children}</div>
       </main>
       <nav className="bottom-nav">
-        {nav.map(({ to, label, icon: Icon }) => (
+        {mobileNav.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'}><Icon size={20} /><span>{label.split(' ')[0]}</span></NavLink>
         ))}
       </nav>

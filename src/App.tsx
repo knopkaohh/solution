@@ -5,10 +5,12 @@ import { useAppStore } from './store'
 
 const TodayPage = lazy(() => import('./pages/TodayPage').then((module) => ({ default: module.TodayPage })))
 const DaysPage = lazy(() => import('./pages/DaysPage').then((module) => ({ default: module.DaysPage })))
+const NutritionPage = lazy(() => import('./pages/NutritionPage').then((module) => ({ default: module.NutritionPage })))
 const TrainingPage = lazy(() => import('./pages/TrainingPage').then((module) => ({ default: module.TrainingPage })))
 const BrainPage = lazy(() => import('./pages/BrainPage').then((module) => ({ default: module.BrainPage })))
 const ProgressPage = lazy(() => import('./pages/ProgressPage').then((module) => ({ default: module.ProgressPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
+const MorePage = lazy(() => import('./pages/MorePage').then((module) => ({ default: module.MorePage })))
 
 export default function App() {
   const { theme, notifications } = useAppStore((state) => state.settings)
@@ -21,7 +23,7 @@ export default function App() {
   useEffect(() => {
     if (!notifications || !('Notification' in window) || Notification.permission !== 'granted') return
     const reminders: Record<string, string> = {
-      '09:00': 'Утренний check-in: выбери главное на сегодня.',
+      '09:00': 'Доброе утро: посмотри план на сегодня.',
       '20:00': 'Время коротко записать результаты дня.',
       '23:30': 'Мягко заверши день и начни подготовку ко сну.',
     }
@@ -45,10 +47,12 @@ export default function App() {
         <Routes>
           <Route path="/" element={<TodayPage />} />
           <Route path="/days" element={<DaysPage />} />
+          <Route path="/nutrition" element={<NutritionPage />} />
           <Route path="/training" element={<TrainingPage />} />
           <Route path="/brain" element={<BrainPage />} />
           <Route path="/progress" element={<ProgressPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/more" element={<MorePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

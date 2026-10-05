@@ -194,7 +194,7 @@ export const useAppStore = create<Store>()(
         return withFactRevision(state, session.date, { workouts })
       }),
       saveBrainSession: (session) => set((state) => {
-        const brainSessions = [...state.brainSessions.filter((item) => item.id !== session.id), session]
+        const brainSessions = [...state.brainSessions.filter((item) => item.date !== session.date), session]
         return withFactRevision(state, session.date, { brainSessions })
       }),
       saveWeeklyReview: (review) => set((state) => ({

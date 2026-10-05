@@ -64,7 +64,7 @@ export function getNextWorkoutTemplate(workouts: WorkoutSession[]): WorkoutTempl
   return last?.template === 'A' ? 'B' : 'A'
 }
 
-export function getTargets(day: number, date: string, settings: Settings, workouts: WorkoutSession[]): DailyTargetsSnapshot {
+export function getTargets(day: number, date: string, settings: Settings): DailyTargetsSnapshot {
   const stepsFull = getStepGoal(day, settings)
   const workoutScheduled = settings.workoutDays.includes(new Date(`${date}T12:00:00`).getDay())
   return {
@@ -76,13 +76,12 @@ export function getTargets(day: number, date: string, settings: Settings, workou
     sleepTarget: settings.sleepTarget,
     wakeTarget: settings.wakeTarget,
     nutritionMode: settings.nutritionMode,
-    workoutTemplate: workoutScheduled ? getNextWorkoutTemplate(workouts) : undefined,
+    workoutTemplate: workoutScheduled ? 'CUSTOM' : undefined,
     workoutMinutesMinimum: workoutScheduled ? 15 : undefined,
   }
 }
 
-export function createPlannedActions(day: number, date: string, targets: DailyTargetsSnapshot): PlannedAction[] {
-  const brain = getBrainTask(day)
+export function createPlannedActions(_day: number, date: string, targets: DailyTargetsSnapshot): PlannedAction[] {
   const actions: PlannedAction[] = [
     {
       id: `${date}-sleep`, domain: 'SLEEP', type: 'sleep-log', label: 'Записать сон',
@@ -96,13 +95,13 @@ export function createPlannedActions(day: number, date: string, targets: DailyTa
       executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
     },
     {
-      id: `${date}-brain`, domain: 'MIND', type: 'brain-session', label: `${brain.category} · ${targets.brainMinutesFull} минут`,
-      detail: brain.title, evidenceType: 'BRAIN', fullTarget: targets.brainMinutesFull, minimumTarget: targets.brainMinutesMinimum,
+      id: `${date}-brain`, domain: 'MIND', type: 'brain-session', label: `Развитие мышления · ${targets.brainMinutesFull} минут`,
+      detail: 'Самостоятельно выбери занятие и запиши, что делал', evidenceType: 'BRAIN', fullTarget: targets.brainMinutesFull, minimumTarget: targets.brainMinutesMinimum,
       executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
     },
     {
       id: `${date}-nutrition`, domain: 'NUTRITION', type: 'nutrition-log', label: 'Записать питание',
-      detail: targets.nutritionMode === 'simple' ? 'Приёмы пищи, сладкое, fast food и кофе' : 'Блюда, калории и БЖУ',
+      detail: 'Оцени питание, добавь комментарий и количество жидкости',
       evidenceType: 'NUTRITION_LOG', executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
     },
     {
@@ -113,9 +112,9 @@ export function createPlannedActions(day: number, date: string, targets: DailyTa
   ]
   if (targets.workoutTemplate) {
     actions.splice(2, 0, {
-      id: `${date}-workout`, domain: 'TRAINING', type: 'workout', label: `Workout ${targets.workoutTemplate}`,
-      detail: 'План 60–90 минут · minimum 15–25 минут', evidenceType: 'WORKOUT',
-      fullTarget: 45, minimumTarget: targets.workoutMinutesMinimum,
+      id: `${date}-workout`, domain: 'TRAINING', type: 'workout', label: 'Потренироваться',
+      detail: 'После занятия запиши продолжительность и что делал', evidenceType: 'WORKOUT',
+      minimumTarget: targets.workoutMinutesMinimum,
       executionWeight: 3, priority: 'core', applicable: true, manualAllowed: false,
     })
   }
@@ -135,7 +134,7 @@ export function createDailyPlan(input: {
   now?: string
 }): DailyPlanSnapshot {
   const createdAt = input.now ?? new Date().toISOString()
-  const targets = getTargets(input.programDay, input.date, input.settings, input.workouts)
+  const targets = getTargets(input.programDay, input.date, input.settings)
   const plannedActions = createPlannedActions(input.programDay, input.date, targets)
   const adaptiveStateSnapshot: AdaptiveStateSnapshot = {
     stepLevel: targets.stepsFull,
@@ -166,8 +165,8 @@ export function createPlanRevision(plan: DailyPlanSnapshot, mode: 'minimum' | 'r
   let actions = copyPlan(plan.originalPlan.plannedActions)
   if (mode === 'minimum') {
     actions = actions.map((action) => {
-      if (action.type === 'steps') return { ...action, label: `${targets.stepsMinimum.toLocaleString('ru-RU')} шагов или 10 минут движения`, detail: 'Minimum movement' }
-      if (action.type === 'brain-session') return { ...action, label: `Mind · ${targets.brainMinutesMinimum} минут`, detail: 'Focus или active recall' }
+      if (action.type === 'steps') return { ...action, label: `${targets.stepsMinimum.toLocaleString('ru-RU')} шагов или 10 минут движения`, detail: 'Минимальное движение' }
+      if (action.type === 'brain-session') return { ...action, label: `Развитие мышления · ${targets.brainMinutesMinimum} минут`, detail: 'Самостоятельное короткое занятие' }
       if (action.type === 'workout') return { ...action, label: 'Сокращённая тренировка · 15–25 минут', detail: '2–3 безопасных двигательных паттерна' }
       return action
     })

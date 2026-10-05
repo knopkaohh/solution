@@ -13,7 +13,7 @@ export type ActionPriority = 'core' | 'support' | 'optional'
 export type ActionDomain = 'SLEEP' | 'MOVEMENT' | 'TRAINING' | 'NUTRITION' | 'MIND'
 export type EvidenceType = 'STEPS' | 'MOVEMENT_MINUTES' | 'WORKOUT' | 'BRAIN' | 'SLEEP_LOG' | 'NUTRITION_LOG' | 'MANUAL'
 export type BrainCategory = 'MEMORY' | 'FOCUS' | 'LOGIC' | 'CRITICAL THINKING' | 'SPEED'
-export type WorkoutTemplate = 'A' | 'B'
+export type WorkoutTemplate = 'A' | 'B' | 'CUSTOM'
 
 export interface Settings {
   name: string
@@ -175,7 +175,10 @@ export interface NutritionLog {
   fastFood?: boolean
   coffee?: number
   water?: number
+  fluidMl?: number
   rating?: number
+  quality?: 'poor' | 'average' | 'excellent'
+  comment?: string
   items: NutritionItem[]
   updatedAt: string
 }

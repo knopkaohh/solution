@@ -57,7 +57,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageTitle eyebrow="SETTINGS" title="Настрой систему под себя." description="Цели — ориентиры, а не наказание. Их можно менять в любой момент." />
+      <PageTitle eyebrow="НАСТРОЙКИ" title="Настрой систему под себя." description="Цели — ориентиры, а не наказание. Их можно менять в любой момент." />
       {message && <div className="toast"><Check size={17} />{message}<button onClick={() => setMessage('')}>×</button></div>}
       <div className="settings-grid">
         <Card>
@@ -68,7 +68,7 @@ export function SettingsPage() {
             <Field label="Желаемый сон"><input type="time" value={settings.sleepTarget} onChange={(e) => updateSettings({ sleepTarget: e.target.value })} /></Field>
             <Field label="Подъём"><input type="time" value={settings.wakeTarget} onChange={(e) => updateSettings({ wakeTarget: e.target.value })} /></Field>
             <Field label="Начальная цель шагов"><div className="inline-input"><input type="number" step="500" min="1000" value={settings.baseStepGoal} onChange={(e) => updateSettings({ baseStepGoal: Number(e.target.value) })} /><span>шагов</span></div></Field>
-            <Field label="Brain session"><div className="inline-input"><input type="number" min="5" max="120" value={settings.brainMinutes} onChange={(e) => updateSettings({ brainMinutes: Number(e.target.value) })} /><span>мин</span></div></Field>
+            <Field label="Занятие для мышления"><div className="inline-input"><input type="number" min="5" max="120" value={settings.brainMinutes} onChange={(e) => updateSettings({ brainMinutes: Number(e.target.value) })} /><span>мин</span></div></Field>
             <Field label="Единицы"><select value={settings.units} onChange={(e) => updateSettings({ units: e.target.value as 'metric' | 'imperial' })}><option value="metric">Килограммы</option><option value="imperial">Фунты</option></select></Field>
           </div>
           <Field label="Дни тренировок"><div className="day-picker">{weekdays.map((label, day) => <button key={label} className={settings.workoutDays.includes(day) ? 'active' : ''} onClick={() => updateSettings({ workoutDays: settings.workoutDays.includes(day) ? settings.workoutDays.filter((d) => d !== day) : [...settings.workoutDays, day] })}>{label}</button>)}</div></Field>
@@ -81,14 +81,14 @@ export function SettingsPage() {
             <button className={settings.theme === 'light' ? 'active' : ''} onClick={() => updateSettings({ theme: 'light' })}><Sun />Светлая</button>
           </div></Field>
           <Field label="Дневник питания"><div className="option-grid">
-            <button className={settings.nutritionMode === 'simple' ? 'active' : ''} onClick={() => updateSettings({ nutritionMode: 'simple' })}><b>SIMPLE</b><small>Приёмы пищи и оценка</small></button>
-            <button className={settings.nutritionMode === 'advanced' ? 'active' : ''} onClick={() => updateSettings({ nutritionMode: 'advanced' })}><b>ADVANCED</b><small>Калории и БЖУ</small></button>
+            <button className={settings.nutritionMode === 'simple' ? 'active' : ''} onClick={() => updateSettings({ nutritionMode: 'simple' })}><b>ПРОСТОЙ</b><small>Общая оценка и комментарий</small></button>
+            <button className={settings.nutritionMode === 'advanced' ? 'active' : ''} onClick={() => updateSettings({ nutritionMode: 'advanced' })}><b>ПОДРОБНЫЙ</b><small>Калории и БЖУ</small></button>
           </div></Field>
         </Card>
 
         <Card>
           <div className="settings-title"><span>03</span><div><h2>Напоминания</h2><p>Только с разрешения браузера</p></div></div>
-          <button className={`setting-toggle ${settings.notifications ? 'active' : ''}`} onClick={toggleNotifications}><Bell /><span><b>Browser notifications</b><small>09:00 check-in · 20:00 итоги · 23:30 подготовка ко сну</small></span><i /></button>
+          <button className={`setting-toggle ${settings.notifications ? 'active' : ''}`} onClick={toggleNotifications}><Bell /><span><b>Уведомления браузера</b><small>09:00 план · 20:00 итоги · 23:30 подготовка ко сну</small></span><i /></button>
           <p className="footnote">Веб-уведомления зависят от настроек браузера и могут не приходить, когда приложение закрыто.</p>
         </Card>
 
@@ -96,8 +96,8 @@ export function SettingsPage() {
           <div className="settings-title"><span>04</span><div><h2>Данные</h2><p>Локально в этом браузере</p></div></div>
           <div className="privacy-note"><Shield /><span><b>Без аккаунта и облака</b><small>Записи не покидают устройство. Регулярно сохраняй резервную копию.</small></span></div>
           <div className="data-actions">
-            <button className="primary" onClick={exportData}><Download /> Export JSON</button>
-            <button className="secondary" onClick={() => fileRef.current?.click()}><Upload /> Import JSON</button>
+            <button className="primary" onClick={exportData}><Download /> Скачать копию</button>
+            <button className="secondary" onClick={() => fileRef.current?.click()}><Upload /> Восстановить копию</button>
             <input ref={fileRef} hidden type="file" accept=".json,application/json" onChange={(e) => importData(e.target.files?.[0])} />
           </div>
           <button className="danger-link" onClick={() => { if (window.confirm('Удалить все локальные данные PERSONAL 90? Это действие нельзя отменить.')) store.resetData() }}>Удалить все локальные данные</button>

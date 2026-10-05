@@ -145,7 +145,7 @@ export function migrateV1ToV2(legacy: LegacyData): AppData {
     ),
   }))
   data.brainSessions = (legacy.brainSessions ?? []).map((session): BrainSession => ({
-    id: session.id, date: session.date, category: session.category, task: 'Legacy session',
+    id: session.id, date: session.date, category: session.category, task: 'Перенесённое занятие',
     difficulty: 1, plannedDuration: settings.brainMinutes, actualDuration: session.minutes ?? 0,
     completed: session.completed ?? false, result: session.score === undefined ? undefined : String(session.score),
   }))
@@ -170,7 +170,7 @@ export function parseAndMigrateData(input: unknown): AppData {
   const candidate = input as Record<string, unknown>
   if (candidate.dataVersion === DATA_VERSION) {
     const parsed = v2Schema.safeParse(candidate)
-    if (!parsed.success) throw new Error(`Некорректная схема v2: ${parsed.error.issues[0]?.message ?? 'unknown error'}`)
+    if (!parsed.success) throw new Error(`Некорректная схема версии 2: ${parsed.error.issues[0]?.message ?? 'неизвестная ошибка'}`)
     return candidate as unknown as AppData
   }
   if (candidate.version === 1 || (!candidate.dataVersion && candidate.settings && candidate.dailyLogs)) {

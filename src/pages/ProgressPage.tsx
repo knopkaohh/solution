@@ -46,25 +46,25 @@ export function ProgressPage() {
 
   return (
     <>
-      <PageTitle eyebrow="PROGRESS" title="Смотри на тренд." description="Отдельный день — шум. Несколько недель показывают направление." action={<div className="segmented"><button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>Обзор</button><button className={tab === 'review' ? 'active' : ''} onClick={() => setTab('review')}>Weekly review</button></div>} />
+      <PageTitle eyebrow="ПРОГРЕСС" title="Смотри на тренд." description="Отдельный день — шум. Несколько недель показывают направление." action={<div className="segmented"><button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>Обзор</button><button className={tab === 'review' ? 'active' : ''} onClick={() => setTab('review')}>Итоги недели</button></div>} />
       {tab === 'overview' ? <>
         <div className="progress-kpis">
-          <Card><span>Текущий вес</span><strong>{currentWeight ?? '—'} <small>кг</small></strong><em>{weightAverage.sufficient ? `7-day avg: ${weightAverage.average} кг` : `7-day avg: недостаточно данных (${weightAverage.count}/3)`}</em></Card>
+          <Card><span>Текущий вес</span><strong>{currentWeight ?? '—'} <small>кг</small></strong><em>{weightAverage.sufficient ? `Среднее за 7 дней: ${weightAverage.average} кг` : `Среднее за 7 дней: недостаточно данных (${weightAverage.count}/3)`}</em></Card>
           <Card><span>Средний сон</span><strong>{avgSleep ? formatDuration(avgSleep) : '—'}</strong><em>{sleepValues.length} записей</em></Card>
           <Card><span>Тренировки</span><strong>{store.workouts.filter((w) => w.completed).length}</strong><em>за текущий цикл</em></Card>
-          <Card><span>Execution</span><strong>{avgExecution}<small>%</small></strong><em>{executionValues.length} дней с подтверждёнными фактами</em></Card>
+          <Card><span>Выполнение плана</span><strong>{avgExecution}<small>%</small></strong><em>{executionValues.length} дней с подтверждёнными фактами</em></Card>
         </div>
         {!hasData ? <Card><Empty>Добавь первые данные на экране «Сегодня» — графики появятся автоматически.</Empty></Card> :
         <div className="chart-grid">
           <ChartCard title="Вес" unit="кг"><ResponsiveContainer width="100%" height={240}><LineChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis domain={['auto', 'auto']} /><Tooltip /><Line connectNulls type="monotone" dataKey="weight" stroke="var(--accent)" strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></ChartCard>
           <ChartCard title="Шаги" unit="в день"><ResponsiveContainer width="100%" height={240}><BarChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis /><Tooltip /><Bar dataKey="steps" fill="var(--blue)" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></ChartCard>
           <ChartCard title="Сон" unit="часов"><ResponsiveContainer width="100%" height={240}><LineChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis domain={[0, 12]} /><Tooltip /><Line connectNulls type="monotone" dataKey="sleep" stroke="var(--violet)" strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></ChartCard>
-          <ChartCard title="Day / Execution" unit="0–100"><ResponsiveContainer width="100%" height={240}><LineChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis domain={[0, 100]} /><Tooltip /><Line connectNulls type="monotone" name="Day Score" dataKey="score" stroke="var(--orange)" strokeWidth={3} dot={false} /><Line connectNulls type="monotone" name="Execution" dataKey="execution" stroke="var(--accent)" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></ChartCard>
+          <ChartCard title="День и выполнение" unit="0–100"><ResponsiveContainer width="100%" height={240}><LineChart data={points}><CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="day" /><YAxis domain={[0, 100]} /><Tooltip /><Line connectNulls type="monotone" name="Оценка дня" dataKey="score" stroke="var(--orange)" strokeWidth={3} dot={false} /><Line connectNulls type="monotone" name="Выполнение плана" dataKey="execution" stroke="var(--accent)" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></ChartCard>
         </div>}
         {[30, 60, 90].includes(day) && <MilestoneReview day={day as 30 | 60 | 90} />}
       </> : (
         <Card className="review-card">
-          <div className="section-heading"><div><span className="eyebrow">НЕДЕЛЯ {week}</span><h2>Weekly review</h2><p>Несколько честных предложений помогут скорректировать систему.</p></div><TrendingUp /></div>
+          <div className="section-heading"><div><span className="eyebrow">НЕДЕЛЯ {week}</span><h2>Итоги недели</h2><p>Несколько честных предложений помогут скорректировать систему.</p></div><TrendingUp /></div>
           <div className="review-questions">
             {[['wins', 'Что получилось?'], ['misses', 'Что не получилось?'], ['hardest', 'Что было самым сложным?'], ['blockers', 'Что мешало?'], ['change', 'Что изменить на следующей неделе?']].map(([key, label]) =>
               <Field key={key} label={label}><textarea rows={2} value={review[key as keyof Pick<WeeklyReview, 'wins' | 'misses' | 'hardest' | 'blockers' | 'change'>]} onChange={(e) => setReview({ ...review, [key]: e.target.value })} /></Field>
@@ -73,7 +73,7 @@ export function ProgressPage() {
           <div className="ratings">
             {ratingFields.map(([key, label]) => <Field key={key} label={label}><input type="range" min="1" max="10" value={review.ratings[key]} onChange={(e) => setReview({ ...review, ratings: { ...review.ratings, [key]: Number(e.target.value) } })} /><b>{review.ratings[key]}/10</b></Field>)}
           </div>
-          <button className="primary" onClick={() => { store.saveWeeklyReview(review); setSaved(true) }}>{saved ? <><Check /> Сохранено</> : 'Сохранить review'}</button>
+          <button className="primary" onClick={() => { store.saveWeeklyReview(review); setSaved(true) }}>{saved ? <><Check /> Сохранено</> : 'Сохранить итоги'}</button>
         </Card>
       )}
     </>
@@ -87,7 +87,7 @@ function ChartCard({ title, unit, children }: { title: string; unit: string; chi
 function MilestoneReview({ day }: { day: 30 | 60 | 90 }) {
   const store = useAppStore()
   const [note, setNote] = useState('')
-  return <Card className="milestone"><span className="eyebrow">DAY {day} REVIEW</span><h2>{day === 90 ? 'Финальная точка цикла' : 'Время настроить следующий этап'}</h2><p>Посмотри на факты выше и зафиксируй главное. Цели можно изменить в настройках.</p><textarea rows={3} placeholder="Что я беру с собой дальше?" value={note} onChange={(e) => setNote(e.target.value)} /><button className="primary" onClick={() => store.saveMonthlyReview({ day, createdAt: todayKey(), note, ratings: defaultRatings })}>Сохранить отчёт</button></Card>
+  return <Card className="milestone"><span className="eyebrow">ИТОГИ ДНЯ {day}</span><h2>{day === 90 ? 'Финальная точка цикла' : 'Время настроить следующий этап'}</h2><p>Посмотри на факты выше и зафиксируй главное. Цели можно изменить в настройках.</p><textarea rows={3} placeholder="Что я беру с собой дальше?" value={note} onChange={(e) => setNote(e.target.value)} /><button className="primary" onClick={() => store.saveMonthlyReview({ day, createdAt: todayKey(), note, ratings: defaultRatings })}>Сохранить отчёт</button></Card>
 }
 
 function FinalReport() {
@@ -95,5 +95,5 @@ function FinalReport() {
   const lastWeight = [...store.weightMeasurements].filter((item) => item.confirmed).sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]?.value ?? '—'
   const stepLogs = Object.values(store.dailyLogs).filter((l) => l.steps)
   const avgSteps = stepLogs.length ? Math.round(stepLogs.reduce((s, l) => s + (l.steps ?? 0), 0) / stepLogs.length) : 0
-  return <><PageTitle eyebrow="DAY 90" title="YOU MADE IT." description="Не идеальный streak. Девяносто дней данных, решений и продолжения." /><Card className="final-report"><div className="before-after"><span>BEFORE</span><TrendingUp /><span>AFTER</span></div><div className="final-grid"><div><span>BODY</span><strong>120 → {lastWeight} кг</strong></div><div><span>ACTIVITY</span><strong>2 000 → {avgSteps.toLocaleString('ru-RU')}</strong></div><div><span>GYM</span><strong>{store.workouts.filter((w) => w.completed).length} тренировок</strong></div><div><span>MIND</span><strong>{store.brainSessions.filter((s) => s.completed).length} сессий</strong></div></div></Card></>
+  return <><PageTitle eyebrow="ДЕНЬ 90" title="ЦИКЛ ЗАВЕРШЁН." description="Не идеальная серия. Девяносто дней данных, решений и продолжения." /><Card className="final-report"><div className="before-after"><span>БЫЛО</span><TrendingUp /><span>СТАЛО</span></div><div className="final-grid"><div><span>ТЕЛО</span><strong>120 → {lastWeight} кг</strong></div><div><span>АКТИВНОСТЬ</span><strong>2 000 → {avgSteps.toLocaleString('ru-RU')}</strong></div><div><span>ТРЕНИРОВКИ</span><strong>{store.workouts.filter((w) => w.completed).length} тренировок</strong></div><div><span>МЫШЛЕНИЕ</span><strong>{store.brainSessions.filter((s) => s.completed).length} занятий</strong></div></div></Card></>
 }

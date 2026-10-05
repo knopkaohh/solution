@@ -31,7 +31,7 @@ export function evaluateAction(action: PlannedAction, plan: DailyPlanSnapshot, d
   const daily = data.dailyLogs[plan.date]
   const sleep = data.sleepLogs[plan.date]
   const nutrition = data.nutritionLogs[plan.date]
-  const workout = data.workouts.find((item) => item.date === plan.date && item.template === plan.targetsSnapshot.workoutTemplate)
+  const workout = data.workouts.find((item) => item.date === plan.date)
   const brain = data.brainSessions.find((item) => item.date === plan.date)
 
   if (action.evidenceType === 'STEPS') {
@@ -52,33 +52,30 @@ export function evaluateAction(action: PlannedAction, plan: DailyPlanSnapshot, d
   }
   if (action.evidenceType === 'NUTRITION_LOG') {
     if (!nutrition) return evaluation('UNVERIFIED', 0, 'Питание пока не записано')
-    const values = [nutrition.meals, nutrition.sweets, nutrition.fastFood, nutrition.coffee]
+    const values = [nutrition.quality, nutrition.fluidMl]
     const fields = values.filter((value) => value !== undefined).length
-    if (fields === 4) {
-      return evaluation(plan.mode === 'minimum' ? 'MINIMUM' : 'FULL', plan.mode === 'minimum' ? 0.6 : 1, 'Базовые данные питания записаны', fields, 4, [nutrition.id])
+    if (fields === 2) {
+      return evaluation(plan.mode === 'minimum' ? 'MINIMUM' : 'FULL', plan.mode === 'minimum' ? 0.6 : 1, 'Оценка питания и жидкость записаны', fields, 2, [nutrition.id])
     }
-    return evaluation('PARTIAL', 0.59 * fields / 4, `Заполнено ${fields} из 4 основных полей`, fields, 4, [nutrition.id])
+    return evaluation('PARTIAL', 0.59 * fields / 2, `Заполнено ${fields} из 2 основных полей`, fields, 2, [nutrition.id])
   }
   if (action.evidenceType === 'WORKOUT') {
     if (!workout) return evaluation('UNVERIFIED', 0, 'Тренировка пока не записана')
-    const workSets = workout.sets.filter((set) => set.kind === 'work')
-    const completedSets = workSets.filter((set) => set.completed).length
-    const completionRatio = workSets.length ? completedSets / workSets.length : 0
-    if (workout.completed && !workout.shortened && completionRatio >= 0.8 && workout.durationMinutes >= (action.fullTarget ?? 45)) {
-      return evaluation('FULL', 1, `Workout ${workout.template} выполнена`, workout.durationMinutes, action.fullTarget, [workout.id])
+    if (workout.completed && !workout.shortened) {
+      return evaluation('FULL', 1, 'Тренировка записана', workout.durationMinutes, undefined, [workout.id])
     }
-    if (plan.mode === 'minimum' && (workout.completed || workout.shortened) && completedSets >= 2 && workout.durationMinutes >= (action.minimumTarget ?? 15)) {
+    if (plan.mode === 'minimum' && (workout.completed || workout.shortened) && workout.durationMinutes >= (action.minimumTarget ?? 15)) {
       return evaluation('MINIMUM', 0.6, 'Сокращённая тренировка выполнена', workout.durationMinutes, action.minimumTarget, [workout.id])
     }
-    return evaluation('PARTIAL', completionRatio ? Math.min(0.59, completionRatio * 0.59) : 0, 'Тренировка выполнена частично', completedSets, workSets.length, [workout.id])
+    return evaluation('PARTIAL', workout.durationMinutes > 0 ? 0.4 : 0, 'Тренировка выполнена частично', workout.durationMinutes, undefined, [workout.id])
   }
   if (action.evidenceType === 'BRAIN') {
-    if (!brain) return evaluation('UNVERIFIED', 0, 'Brain-сессия пока не записана')
+    if (!brain) return evaluation('UNVERIFIED', 0, 'Занятие для мышления пока не записано')
     if (brain.completed && brain.actualDuration >= (action.fullTarget ?? brain.plannedDuration)) {
       return evaluation('FULL', 1, `${brain.actualDuration} минут выполнено`, brain.actualDuration, action.fullTarget, [brain.id])
     }
     if (plan.mode === 'minimum' && brain.completed && brain.actualDuration >= (action.minimumTarget ?? 5)) {
-      return evaluation('MINIMUM', 0.6, 'Минимальная Brain-сессия выполнена', brain.actualDuration, action.minimumTarget, [brain.id])
+      return evaluation('MINIMUM', 0.6, 'Минимальное занятие для мышления выполнено', brain.actualDuration, action.minimumTarget, [brain.id])
     }
     return numericEvaluation(action, brain.actualDuration, plan.mode, [brain.id])
   }
@@ -134,7 +131,7 @@ function movementScore(actual: number | undefined, full: number, minimum: number
 
 function trainingScore(data: AppData, plan: DailyPlanSnapshot) {
   if (!plan.targetsSnapshot.workoutTemplate) return undefined
-  const session = data.workouts.find((item) => item.date === plan.date && item.template === plan.targetsSnapshot.workoutTemplate)
+  const session = data.workouts.find((item) => item.date === plan.date)
   if (!session) return undefined
   const workSets = session.sets.filter((set) => set.kind === 'work')
   const setCompletion = workSets.length ? workSets.filter((set) => set.completed).length / workSets.length * 100 : session.completed ? 100 : 0
@@ -148,8 +145,9 @@ function trainingScore(data: AppData, plan: DailyPlanSnapshot) {
 function nutritionScore(data: AppData, date: string) {
   const log = data.nutritionLogs[date]
   if (!log) return undefined
-  const fields = [log.meals, log.sweets, log.fastFood, log.coffee, log.rating]
-  return Math.round(fields.filter((value) => value !== undefined).length / fields.length * 100)
+  if (!log.quality) return log.fluidMl !== undefined ? 30 : undefined
+  const quality = { poor: 40, average: 70, excellent: 100 }[log.quality]
+  return Math.round(quality * 0.8 + (log.fluidMl !== undefined ? 20 : 0))
 }
 
 function mindScore(data: AppData, plan: DailyPlanSnapshot) {
