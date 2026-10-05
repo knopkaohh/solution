@@ -101,10 +101,16 @@ test('minimum and recovery are distinct modes', async ({ page }) => {
 })
 
 test('mobile navigation exposes all sections', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 })
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('./')
   const nav = page.locator('.bottom-nav')
   await expect(nav.getByRole('link')).toHaveCount(5)
+  for (const route of ['./', './nutrition', './training', './brain', './days', './progress', './settings', './more']) {
+    await page.goto(route)
+    const dimensions = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: window.innerWidth }))
+    expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport)
+  }
+  await page.goto('./')
   await nav.getByRole('link', { name: /Ещё/ }).click()
   await page.getByRole('link', { name: /Настройки/ }).click()
   await expect(page.getByRole('heading', { name: 'Настрой систему под себя.' })).toBeVisible()
