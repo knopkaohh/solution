@@ -1,4 +1,10 @@
-import type { BrainCategory, Mission, Settings } from './types'
+import type {
+  AdaptiveStateSnapshot, BrainCategory, DailyPlanSnapshot, DailyTargetsSnapshot,
+  PlanRevision, PlannedAction, ProgramCycle, ProgramPhase, Settings, WorkoutSession,
+  WorkoutTemplate,
+} from './types'
+import { METHODOLOGY_VERSION } from './types'
+import { uid } from './utils'
 
 export const programConfig = {
   phases: [
@@ -37,33 +43,150 @@ export const programConfig = {
 }
 
 export function getPhase(day: number) {
-  return programConfig.phases.find((phase) => day >= phase.range[0] && day <= phase.range[1]) ?? programConfig.phases[2]
+  return programConfig.phases.find((phase) => day >= phase.range[0] && day <= phase.range[1]) ?? (day < 1 ? programConfig.phases[0] : programConfig.phases[2])
 }
 
 export function getStepGoal(day: number, settings: Settings) {
-  if (settings.baseStepGoal !== 3000) return settings.baseStepGoal
   const phase = getPhase(day)
   const phaseDay = Math.max(1, day - phase.range[0] + 1)
-  return phase.stepGoals[Math.min(phase.stepGoals.length - 1, Math.floor((phaseDay - 1) / 7))]
+  const configuredOffset = settings.baseStepGoal - 3000
+  return Math.max(1000, phase.stepGoals[Math.min(phase.stepGoals.length - 1, Math.floor((phaseDay - 1) / 7))] + configuredOffset)
 }
 
 export function getBrainTask(day: number) {
   return programConfig.brainTasks[(Math.max(1, day) - 1) % programConfig.brainTasks.length]
 }
 
-export function getMissions(day: number, date: string, settings: Settings): Mission[] {
-  const brain = getBrainTask(day)
-  const missions: Mission[] = [
-    { id: `${date}-steps`, area: 'BODY', title: `${getStepGoal(day, settings).toLocaleString('ru-RU')} шагов`, detail: 'Можно набрать несколькими короткими прогулками', points: 25 },
-    { id: `${date}-brain`, area: 'MIND', title: `${getPhase(day).brainMinutes} минут концентрации`, detail: brain.title, points: 20 },
-    { id: `${date}-sleep`, area: 'SLEEP', title: `Подготовка ко сну до ${settings.sleepTarget}`, detail: 'Спокойное завершение дня без перфекционизма', points: 20 },
-    { id: `${date}-log`, area: 'NUTRITION', title: 'Короткий дневной check-in', detail: 'Сон, питание и самочувствие — только главное', points: 15 },
-  ]
-  const weekday = new Date(`${date}T12:00:00`).getDay()
-  if (settings.workoutDays.includes(weekday)) {
-    missions.splice(1, 0, { id: `${date}-workout`, area: 'GYM', title: day % 2 ? 'Workout A' : 'Workout B', detail: '60–90 мин · или minimum: 15 минут движения', points: 20 })
-  } else {
-    missions.push({ id: `${date}-movement`, area: 'BODY', title: 'Минимум движения', detail: '5 минут разминки считаются', points: 20 })
+export function getNextWorkoutTemplate(workouts: WorkoutSession[]): WorkoutTemplate {
+  const last = workouts
+    .filter((workout) => workout.completed)
+    .sort((a, b) => `${b.date}-${b.endedAt ?? ''}`.localeCompare(`${a.date}-${a.endedAt ?? ''}`))[0]
+  return last?.template === 'A' ? 'B' : 'A'
+}
+
+export function getTargets(day: number, date: string, settings: Settings, workouts: WorkoutSession[]): DailyTargetsSnapshot {
+  const stepsFull = getStepGoal(day, settings)
+  const workoutScheduled = settings.workoutDays.includes(new Date(`${date}T12:00:00`).getDay())
+  return {
+    stepsFull,
+    stepsMinimum: Math.max(1000, Math.round((stepsFull * 0.5) / 250) * 250),
+    movementMinutesMinimum: 10,
+    brainMinutesFull: settings.brainMinutes || getPhase(day).brainMinutes,
+    brainMinutesMinimum: 5,
+    sleepTarget: settings.sleepTarget,
+    wakeTarget: settings.wakeTarget,
+    nutritionMode: settings.nutritionMode,
+    workoutTemplate: workoutScheduled ? getNextWorkoutTemplate(workouts) : undefined,
+    workoutMinutesMinimum: workoutScheduled ? 15 : undefined,
   }
-  return missions
+}
+
+export function createPlannedActions(day: number, date: string, targets: DailyTargetsSnapshot): PlannedAction[] {
+  const brain = getBrainTask(day)
+  const actions: PlannedAction[] = [
+    {
+      id: `${date}-sleep`, domain: 'SLEEP', type: 'sleep-log', label: 'Записать сон',
+      detail: `Цель ${targets.sleepTarget} → ${targets.wakeTarget}`, evidenceType: 'SLEEP_LOG',
+      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
+    },
+    {
+      id: `${date}-steps`, domain: 'MOVEMENT', type: 'steps', label: `${targets.stepsFull.toLocaleString('ru-RU')} шагов`,
+      detail: `Минимальная версия: ${targets.stepsMinimum.toLocaleString('ru-RU')} шагов или 10 минут движения`,
+      evidenceType: 'STEPS', fullTarget: targets.stepsFull, minimumTarget: targets.stepsMinimum,
+      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
+    },
+    {
+      id: `${date}-brain`, domain: 'MIND', type: 'brain-session', label: `${brain.category} · ${targets.brainMinutesFull} минут`,
+      detail: brain.title, evidenceType: 'BRAIN', fullTarget: targets.brainMinutesFull, minimumTarget: targets.brainMinutesMinimum,
+      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
+    },
+    {
+      id: `${date}-nutrition`, domain: 'NUTRITION', type: 'nutrition-log', label: 'Записать питание',
+      detail: targets.nutritionMode === 'simple' ? 'Приёмы пищи, сладкое, fast food и кофе' : 'Блюда, калории и БЖУ',
+      evidenceType: 'NUTRITION_LOG', executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
+    },
+    {
+      id: `${date}-sleep-prep`, domain: 'SLEEP', type: 'sleep-preparation', label: `Подготовка ко сну к ${targets.sleepTarget}`,
+      detail: 'Единственное ручное действие дня', evidenceType: 'MANUAL',
+      executionWeight: 1, priority: 'support', applicable: true, manualAllowed: true,
+    },
+  ]
+  if (targets.workoutTemplate) {
+    actions.splice(2, 0, {
+      id: `${date}-workout`, domain: 'TRAINING', type: 'workout', label: `Workout ${targets.workoutTemplate}`,
+      detail: 'План 60–90 минут · minimum 15–25 минут', evidenceType: 'WORKOUT',
+      fullTarget: 45, minimumTarget: targets.workoutMinutesMinimum,
+      executionWeight: 3, priority: 'core', applicable: true, manualAllowed: false,
+    })
+  }
+  return actions
+}
+
+function copyPlan<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+export function createDailyPlan(input: {
+  cycle: ProgramCycle
+  date: string
+  programDay: number
+  settings: Settings
+  workouts: WorkoutSession[]
+  now?: string
+}): DailyPlanSnapshot {
+  const createdAt = input.now ?? new Date().toISOString()
+  const targets = getTargets(input.programDay, input.date, input.settings, input.workouts)
+  const plannedActions = createPlannedActions(input.programDay, input.date, targets)
+  const adaptiveStateSnapshot: AdaptiveStateSnapshot = {
+    stepLevel: targets.stepsFull,
+    brainMinutes: targets.brainMinutesFull,
+    workoutVolume: input.programDay <= 14 ? 'intro' : 'standard',
+    capturedAt: createdAt,
+  }
+  const revisionId = uid()
+  return {
+    id: `plan-${input.cycle.id}-${input.date}`,
+    cycleId: input.cycle.id,
+    date: input.date,
+    programDay: input.programDay,
+    phase: getPhase(input.programDay).name as ProgramPhase,
+    createdAt,
+    methodologyVersion: METHODOLOGY_VERSION,
+    adaptiveStateSnapshot,
+    targetsSnapshot: copyPlan(targets),
+    plannedActions: copyPlan(plannedActions),
+    originalPlan: { mode: 'normal', targets: copyPlan(targets), plannedActions: copyPlan(plannedActions) },
+    currentRevisionId: revisionId,
+    mode: 'normal',
+  }
+}
+
+export function createPlanRevision(plan: DailyPlanSnapshot, mode: 'minimum' | 'recovery', reason: string, revision: number): PlanRevision {
+  const targets = copyPlan(plan.originalPlan.targets)
+  let actions = copyPlan(plan.originalPlan.plannedActions)
+  if (mode === 'minimum') {
+    actions = actions.map((action) => {
+      if (action.type === 'steps') return { ...action, label: `${targets.stepsMinimum.toLocaleString('ru-RU')} шагов или 10 минут движения`, detail: 'Minimum movement' }
+      if (action.type === 'brain-session') return { ...action, label: `Mind · ${targets.brainMinutesMinimum} минут`, detail: 'Focus или active recall' }
+      if (action.type === 'workout') return { ...action, label: 'Сокращённая тренировка · 15–25 минут', detail: '2–3 безопасных двигательных паттерна' }
+      return action
+    })
+  } else {
+    actions = actions.map((action) => ({
+      ...action,
+      applicable: action.type === 'sleep-log',
+      priority: action.type === 'sleep-log' ? 'core' : 'optional',
+      label: action.type === 'sleep-log' ? 'Записать сон и самочувствие' : action.label,
+    }))
+  }
+  return {
+    id: uid(),
+    dailyPlanId: plan.id,
+    revision,
+    createdAt: new Date().toISOString(),
+    mode,
+    reason,
+    targetsSnapshot: targets,
+    plannedActions: actions,
+  }
 }
