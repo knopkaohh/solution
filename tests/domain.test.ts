@@ -58,6 +58,19 @@ describe('action evaluation and scores', () => {
     expect(calculateScores(data, plan).executionScore).toBeUndefined()
   })
 
+  it('accepts a manual completion mark for any planned action', () => {
+    const { data, plan } = fixture()
+    const steps = plan.plannedActions.find((action) => action.type === 'steps')!
+    data.dailyLogs[plan.date] = {
+      date: plan.date, manualActionIds: [steps.id], updatedAt: new Date().toISOString(),
+    }
+    expect(evaluateAction(steps, plan, data)).toMatchObject({
+      status: 'FULL',
+      credit: 1,
+      explanation: 'Выполнение подтверждено вручную',
+    })
+  })
+
   it('marks a numeric result below full as PARTIAL', () => {
     const { data, plan } = fixture()
     data.dailyLogs[plan.date] = { date: plan.date, steps: 2800, manualActionIds: [], updatedAt: new Date().toISOString() }

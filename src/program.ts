@@ -86,23 +86,23 @@ export function createPlannedActions(_day: number, date: string, targets: DailyT
     {
       id: `${date}-sleep`, domain: 'SLEEP', type: 'sleep-log', label: 'Записать сон',
       detail: `Цель ${targets.sleepTarget} → ${targets.wakeTarget}`, evidenceType: 'SLEEP_LOG',
-      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
+      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: true,
     },
     {
       id: `${date}-steps`, domain: 'MOVEMENT', type: 'steps', label: `${targets.stepsFull.toLocaleString('ru-RU')} шагов`,
       detail: `Минимальная версия: ${targets.stepsMinimum.toLocaleString('ru-RU')} шагов или 10 минут движения`,
       evidenceType: 'STEPS', fullTarget: targets.stepsFull, minimumTarget: targets.stepsMinimum,
-      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
+      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: true,
     },
     {
       id: `${date}-brain`, domain: 'MIND', type: 'brain-session', label: `Развитие мышления · ${targets.brainMinutesFull} минут`,
       detail: 'Самостоятельно выбери занятие и запиши, что делал', evidenceType: 'BRAIN', fullTarget: targets.brainMinutesFull, minimumTarget: targets.brainMinutesMinimum,
-      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
+      executionWeight: 2, priority: 'core', applicable: true, manualAllowed: true,
     },
     {
       id: `${date}-nutrition`, domain: 'NUTRITION', type: 'nutrition-log', label: 'Записать питание',
       detail: 'Оцени питание, добавь комментарий и количество жидкости',
-      evidenceType: 'NUTRITION_LOG', executionWeight: 2, priority: 'core', applicable: true, manualAllowed: false,
+      evidenceType: 'NUTRITION_LOG', executionWeight: 2, priority: 'core', applicable: true, manualAllowed: true,
     },
     {
       id: `${date}-sleep-prep`, domain: 'SLEEP', type: 'sleep-preparation', label: `Подготовка ко сну к ${targets.sleepTarget}`,
@@ -115,7 +115,7 @@ export function createPlannedActions(_day: number, date: string, targets: DailyT
       id: `${date}-workout`, domain: 'TRAINING', type: 'workout', label: 'Потренироваться',
       detail: 'После занятия запиши продолжительность и что делал', evidenceType: 'WORKOUT',
       minimumTarget: targets.workoutMinutesMinimum,
-      executionWeight: 3, priority: 'core', applicable: true, manualAllowed: false,
+      executionWeight: 3, priority: 'core', applicable: true, manualAllowed: true,
     })
   }
   return actions

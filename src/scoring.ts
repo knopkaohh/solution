@@ -29,6 +29,9 @@ function numericEvaluation(action: PlannedAction, actual: number | undefined, mo
 export function evaluateAction(action: PlannedAction, plan: DailyPlanSnapshot, data: AppData): ActionEvaluation {
   if (!action.applicable) return evaluation('NOT_APPLICABLE', 0, 'Действие не применяется в текущем режиме')
   const daily = data.dailyLogs[plan.date]
+  if (daily?.manualActionIds.includes(action.id)) {
+    return evaluation('FULL', 1, 'Выполнение подтверждено вручную', true, action.fullTarget, [daily.date])
+  }
   const sleep = data.sleepLogs[plan.date]
   const nutrition = data.nutritionLogs[plan.date]
   const workout = data.workouts.find((item) => item.date === plan.date)

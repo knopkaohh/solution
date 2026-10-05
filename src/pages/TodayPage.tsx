@@ -23,6 +23,9 @@ export function TodayPage() {
   const plan = store.dailyPlans[date]
   const daily = store.dailyLogs[date]
   const sleep = store.sleepLogs[date]
+  const nutrition = store.nutritionLogs[date]
+  const workout = store.workouts.find((item) => item.date === date)
+  const brainSession = store.brainSessions.find((item) => item.date === date)
   const scores = useMemo(() => plan ? calculateScores(store, plan) : undefined, [store, plan])
 
   const changeDate = (amount: number) => setDate(format(addDays(parseISO(date), amount), 'yyyy-MM-dd'))
@@ -63,9 +66,10 @@ export function TodayPage() {
             {plan.plannedActions.filter((action) => action.applicable && action.priority !== 'optional').map((action) => {
               const result = scores.actionEvaluations[action.id]
               const done = ['FULL', 'MINIMUM', 'RECOVERY_ACTION_FULL'].includes(result.status)
-              return <button key={action.id} className={`mission evaluation-${result.status.toLowerCase()} ${done ? 'done' : ''}`} disabled={!action.manualAllowed} onClick={() => action.manualAllowed && store.toggleManualAction(date, action.id)}>
+              const label = action.type === 'workout' ? 'Тренировка' : action.label
+              return <button key={action.id} aria-label={`${done ? 'Снять отметку' : 'Отметить выполненным'}: ${label}`} className={`mission evaluation-${result.status.toLowerCase()} ${done ? 'done' : ''}`} onClick={() => store.toggleManualAction(date, action.id)}>
                 <span className="checkbox">{done && <Check size={15} />}</span>
-                <span><small>{domainLabel[action.domain]} · {action.priority === 'core' ? 'главное' : 'дополнительно'}</small><strong>{action.label}</strong><em>{result.explanation}</em></span>
+                <span><small>{domainLabel[action.domain]} · {action.priority === 'core' ? 'главное' : 'дополнительно'}</small><strong>{label}</strong><em>{result.explanation}</em></span>
                 <b className={`action-status ${result.status.toLowerCase()}`}>{actionStatusLabel[result.status]}</b>
               </button>
             })}
@@ -110,9 +114,9 @@ export function TodayPage() {
 
           <Card className="session-summary">
             <span className="eyebrow">ОСТАЛЬНЫЕ ФАКТЫ</span><h2>Заполни отдельные разделы</h2>
-            <Link to="/nutrition"><Utensils /><span><b>Питание и вес</b><small>{scores.domainScores.nutrition !== undefined ? `Оценка ${scores.domainScores.nutrition} из 100` : 'Нет данных'}</small></span><ChevronRight /></Link>
-            <Link to="/training"><Dumbbell /><span><b>Тренировка</b><small>{scores.domainScores.training !== undefined ? `Оценка ${scores.domainScores.training} из 100` : plan.targetsSnapshot.workoutTemplate ? 'Запланирована' : 'Сегодня не запланирована'}</small></span><ChevronRight /></Link>
-            <Link to="/brain"><Brain /><span><b>Развитие мышления · {plan.targetsSnapshot.brainMinutesFull} минут</b><small>{scores.domainScores.mind !== undefined ? `Оценка ${scores.domainScores.mind} из 100` : 'Нет данных'}</small></span><ChevronRight /></Link>
+            <Link to="/nutrition"><Utensils /><span><b>Питание и вес</b><small>{nutrition?.quality ? `Записано · ${nutritionQualityLabel[nutrition.quality]}` : 'Не заполнено'}</small></span><ChevronRight /></Link>
+            <Link to="/training"><Dumbbell /><span><b>Тренировка</b><small>{workout?.completed ? `Записано · ${workout.durationMinutes} мин` : plan.targetsSnapshot.workoutTemplate ? 'Запланирована' : 'Сегодня не запланирована'}</small></span><ChevronRight /></Link>
+            <Link to="/brain"><Brain /><span><b>Развитие мышления · {plan.targetsSnapshot.brainMinutesFull} минут</b><small>{brainSession?.completed ? `Завершено · ${brainSession.actualDuration} мин` : brainSession ? `Записано ${brainSession.actualDuration} из ${brainSession.plannedDuration} мин` : 'Не начато'}</small></span><ChevronRight /></Link>
           </Card>
 
           <Card className="day-result">
@@ -127,3 +131,9 @@ export function TodayPage() {
 }
 
 type DailyLogDifficulty = 'easier' | 'as-planned' | 'harder'
+
+const nutritionQualityLabel = {
+  poor: 'плохо',
+  average: 'средне',
+  excellent: 'отлично',
+} as const

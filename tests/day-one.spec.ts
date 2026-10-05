@@ -11,6 +11,8 @@ test('a complete day uses facts, persists, and can be backed up', async ({ page 
 
   await expect(page.getByRole('heading', { name: /Сегодня/ })).toBeVisible()
   await expect(page.getByText(/Что нужно сделать/)).toBeVisible()
+  await page.getByRole('button', { name: /Отметить выполненным: 3.*шагов/ }).click()
+  await expect(page.getByRole('button', { name: /Снять отметку: 3.*шагов/ })).toBeVisible()
   await page.getByRole('button', { name: /Итоги дня/ }).click()
   await page.getByLabel('Заснул').fill('01:10')
   await page.getByLabel('Проснулся').fill('09:20')
@@ -41,6 +43,8 @@ test('a complete day uses facts, persists, and can be backed up', async ({ page 
 
   await page.getByRole('link', { name: 'Сегодня' }).first().click()
   await page.getByRole('button', { name: /Итоги дня/ }).click()
+  await expect(page.getByText('Завершено · 20 мин')).toBeVisible()
+  await expect(page.getByText(/Оценка 60 из 100/)).toHaveCount(0)
   await page.getByRole('button', { name: 'Завершить день' }).click()
   await expect(page.getByText(/Выполнено|Частично|Минимальный день/).last()).toBeVisible()
   const revisionsBefore = await page.evaluate(() => {
