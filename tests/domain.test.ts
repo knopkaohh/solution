@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialData, migrateV1ToV2, parseAndMigrateData } from '../src/data'
-import { createDailyPlan, createPlanRevision, getNextWorkoutTemplate } from '../src/program'
+import { createDailyPlan, createPlanRevision } from '../src/program'
 import { calculateScores, evaluateAction } from '../src/scoring'
-import type { AppData, Settings, WorkoutSession } from '../src/types'
+import type { AppData, Settings } from '../src/types'
 import { calculateWeightAverage, getProgramPosition } from '../src/utils'
 
 const settings: Settings = {
@@ -85,7 +85,7 @@ describe('action evaluation and scores', () => {
       durationMinutes: 480, targetSleepTime: '00:00', targetWakeTime: '08:00', source: 'manual', updatedAt: new Date().toISOString(),
     }
     data.nutritionLogs[plan.date] = {
-      id: 'food-min', date: plan.date, meals: 2, sweets: false, fastFood: false, coffee: 2, items: [], updatedAt: new Date().toISOString(),
+      id: 'food-min', date: plan.date, quality: 'average', fluidMl: 1500, items: [], updatedAt: new Date().toISOString(),
     }
     data.brainSessions.push({
       id: 'brain-min', date: plan.date, category: 'FOCUS', task: 'Focus', difficulty: 1,
@@ -121,7 +121,7 @@ describe('action evaluation and scores', () => {
   })
 })
 
-describe('weight trend and workout queue', () => {
+describe('weight trend and free-form workouts', () => {
   it('requires three measurements for a seven-day average', () => {
     const two = [
       { id: '1', timestamp: '2026-01-18T08:00:00', value: 120, unit: 'kg' as const, source: 'manual' as const, confirmed: true, suspicious: false },
@@ -131,14 +131,15 @@ describe('weight trend and workout queue', () => {
     expect(calculateWeightAverage([...two, { ...two[0], id: '3', timestamp: '2026-01-17T08:00:00', value: 118 }], '2026-01-19')).toMatchObject({ sufficient: true, average: 119 })
   })
 
-  it('alternates from the last completed workout', () => {
-    const workout = (template: 'A' | 'B', date: string, completed = true): WorkoutSession => ({
-      id: date, date, template, durationMinutes: 60, completed, shortened: false, recoveryMode: false, sets: [],
+  it('accepts a completed custom workout as factual evidence', () => {
+    const { data, plan } = fixture('2026-01-20')
+    const action = plan.plannedActions.find((item) => item.type === 'workout')!
+    data.workouts.push({
+      id: 'custom-workout', date: plan.date, template: 'CUSTOM', durationMinutes: 45,
+      completed: true, shortened: false, recoveryMode: false, notes: 'Самостоятельная тренировка', sets: [],
     })
-    expect(getNextWorkoutTemplate([])).toBe('A')
-    expect(getNextWorkoutTemplate([workout('A', '2026-01-10')])).toBe('B')
-    expect(getNextWorkoutTemplate([workout('A', '2026-01-10'), workout('B', '2026-01-12', false)])).toBe('B')
-    expect(getNextWorkoutTemplate([workout('A', '2026-01-10'), workout('B', '2026-01-12')])).toBe('A')
+    expect(action).toBeDefined()
+    expect(evaluateAction(action, plan, data)).toMatchObject({ status: 'FULL', credit: 1 })
   })
 })
 
